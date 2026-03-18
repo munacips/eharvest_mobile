@@ -1,0 +1,487 @@
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/services/auth_service.dart';
+
+class AccountPage extends StatefulWidget {
+  final int id;
+
+  const AccountPage({super.key, required this.id});
+
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  User? user;
+  Farmer? farmer;
+  Buyer? buyer;
+  LogisticsProvider? logisticsProvider;
+  bool isLoading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchAccountData();
+  }
+
+  Future<void> fetchAccountData() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final token = await AuthService.getToken();
+      if (token == null || token.isEmpty) {
+        setState(() {
+          errorMessage = 'Authentication error. Please log in again.';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final baseUri = Uri.parse('${api}users/${widget.id}');
+      final baseResponse = await http.get(
+        baseUri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (baseResponse.statusCode != 200) {
+        setState(() {
+          errorMessage =
+              'Failed to load account details: ${baseResponse.statusCode}';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final baseData = json.decode(baseResponse.body) as Map<String, dynamic>;
+      final roleRaw = (baseData['role'] ?? '').toString();
+      final roleKey = roleRaw.trim().toLowerCase().replaceAll(' ', '_');
+
+      final endpointByRole = <String, String>{
+        'farmer': 'farmers',
+        'buyer': 'buyers',
+        'logistics_provider': 'logistics-providers',
+        'logisticsprovider': 'logistics-providers',
+      };
+      final endpoint = endpointByRole[roleKey] ?? 'users';
+
+      Map<String, dynamic> finalData = baseData;
+      if (endpoint != 'users') {
+        final roleUri = Uri.parse('$api$endpoint/${widget.id}');
+        final roleResponse = await http.get(
+          roleUri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+        if (roleResponse.statusCode == 200) {
+          finalData = json.decode(roleResponse.body) as Map<String, dynamic>;
+        }
+      }
+
+      if (roleKey == 'farmer') {
+        farmer = Farmer.fromJson(finalData);
+        buyer = null;
+        logisticsProvider = null;
+        user = null;
+      } else if (roleKey == 'buyer') {
+        buyer = Buyer.fromJson(finalData);
+        farmer = null;
+        logisticsProvider = null;
+        user = null;
+      } else if (roleKey == 'logistics_provider' ||
+          roleKey == 'logisticsprovider') {
+        logisticsProvider = LogisticsProvider.fromJson(finalData);
+        buyer = null;
+        farmer = null;
+        user = null;
+      } else {
+        user = User.fromJson(finalData);
+        buyer = null;
+        farmer = null;
+        logisticsProvider = null;
+      }
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error loading account details: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final personalTiles = _buildPersonalInfoTiles();
+    final businessTiles = _buildBusinessInfoTiles();
+
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text('Account Profile'),
+        backgroundColor: Color(primaryColour),
+        foregroundColor: Colors.white,
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(child: Text(errorMessage!))
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildProfileHeader(),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        _buildTrustCard(),
+                        const SizedBox(height: 20),
+                        if (personalTiles.isNotEmpty) ...[
+                          _buildInfoSection('Contact Information', personalTiles),
+                          const SizedBox(height: 20),
+                        ],
+                        if (businessTiles.isNotEmpty) ...[
+                          _buildInfoSection('Business Details', businessTiles),
+                          const SizedBox(height: 20),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    final name = _getField('fullName')?.toString() ?? '-';
+    final role = _normalizedRole;
+    final verified = _getField('verified') == true;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 24, bottom: 24),
+      decoration: BoxDecoration(
+        color: Color(primaryColour),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+      ),
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              const CircleAvatar(
+                radius: 44,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, size: 52, color: Colors.grey),
+              ),
+              if (verified)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.verified,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            role.isNotEmpty ? role : '-',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              letterSpacing: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrustCard() {
+    final trustScore = _getField('trustScore');
+    double trustValue = 0;
+    if (trustScore != null) {
+      trustValue = double.tryParse(trustScore.toString()) ?? 0;
+    }
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Trust Score',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    trustScore != null ? '$trustScore/100' : '-',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(primaryColour),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 60,
+              height: 60,
+              child: CircularProgressIndicator(
+                value: trustValue / 100,
+                backgroundColor: Colors.grey[200],
+                color: Color(primaryColour),
+                strokeWidth: 8,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+          child: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildPersonalInfoTiles() {
+    final tiles = <Widget>[];
+    _addInfoTileIfValue(tiles, Icons.email, 'Email', _getField('email'));
+    _addInfoTileIfValue(tiles, Icons.phone, 'Phone', _getField('phoneNumber'));
+    _addInfoTileIfValue(tiles, Icons.home, 'Address', _getField('address'));
+    return tiles;
+  }
+
+  List<Widget> _buildBusinessInfoTiles() {
+    final tiles = <Widget>[];
+    if (_isFarmer) {
+      _addInfoTileIfValue(tiles, Icons.agriculture, 'Farm Name', _getField('farmName'));
+      _addInfoTileIfValue(
+        tiles,
+        Icons.location_on,
+        'Farm Location',
+        _getField('farmLocation'),
+      );
+      _addInfoTileIfValue(
+        tiles,
+        Icons.check_circle,
+        'Successful Sales',
+        _getField('successfulSales'),
+      );
+    } else if (_isBuyer) {
+      _addInfoTileIfValue(
+        tiles,
+        Icons.business,
+        'Company Name',
+        _getField('companyName'),
+      );
+      _addInfoTileIfValue(
+        tiles,
+        Icons.shopping_cart_checkout,
+        'Successful Buys',
+        _getField('successfulBuys'),
+      );
+    } else if (_isLogisticsProvider) {
+      _addInfoTileIfValue(
+        tiles,
+        Icons.local_shipping,
+        'License Number',
+        _getField('licenseNumber'),
+      );
+    }
+    return tiles;
+  }
+
+  void _addInfoTileIfValue(
+    List<Widget> tiles,
+    IconData icon,
+    String label,
+    Object? value,
+  ) {
+    if (_hasValue(value)) {
+      tiles.add(_infoTile(icon, label, value));
+    }
+  }
+
+  bool _hasValue(Object? value) {
+    if (value == null) return false;
+    final text = value.toString().trim();
+    return text.isNotEmpty && text.toLowerCase() != 'null';
+  }
+
+  String get _normalizedRole =>
+      (_getField('role')?.toString().trim().toUpperCase() ?? '');
+
+  bool get _isFarmer => _normalizedRole == 'FARMER';
+  bool get _isBuyer => _normalizedRole == 'BUYER';
+  bool get _isLogisticsProvider => _normalizedRole == 'LOGISTICS_PROVIDER';
+
+  Object? _getField(String key) {
+    if (farmer != null) {
+      switch (key) {
+        case 'fullName':
+          return farmer!.fullName;
+        case 'role':
+          return farmer!.role;
+        case 'verified':
+          return farmer!.verified;
+        case 'email':
+          return farmer!.email;
+        case 'phoneNumber':
+          return farmer!.phoneNumber;
+        case 'address':
+          return farmer!.address;
+        case 'trustScore':
+          return farmer!.trustScore.toString();
+        case 'farmName':
+          return farmer!.farmName;
+        case 'farmLocation':
+          return farmer!.farmLocation;
+        case 'successfulSales':
+          return farmer!.successfulSales.toString();
+        default:
+          return null;
+      }
+    }
+
+    if (buyer != null) {
+      switch (key) {
+        case 'fullName':
+          return buyer!.fullName;
+        case 'role':
+          return buyer!.role;
+        case 'verified':
+          return buyer!.verified;
+        case 'email':
+          return buyer!.email;
+        case 'phoneNumber':
+          return buyer!.phoneNumber;
+        case 'address':
+          return buyer!.address;
+        case 'trustScore':
+          return buyer!.trustScore.toString();
+        case 'companyName':
+          return buyer!.companyName;
+        case 'successfulBuys':
+          return buyer!.successfulBuys.toString();
+        default:
+          return null;
+      }
+    }
+
+    if (logisticsProvider != null) {
+      switch (key) {
+        case 'fullName':
+          return logisticsProvider!.fullName;
+        case 'role':
+          return logisticsProvider!.role;
+        case 'verified':
+          return logisticsProvider!.verified;
+        case 'email':
+          return logisticsProvider!.email;
+        case 'phoneNumber':
+          return logisticsProvider!.phoneNumber;
+        case 'address':
+          return logisticsProvider!.address;
+        case 'trustScore':
+          return logisticsProvider!.trustScore.toString();
+        case 'licenseNumber':
+          return logisticsProvider!.licenseNumber;
+        default:
+          return null;
+      }
+    }
+
+    if (user != null) {
+      switch (key) {
+        case 'fullName':
+          return user!.fullName;
+        case 'role':
+          return user!.role;
+        case 'verified':
+          return user!.verified;
+        case 'email':
+          return user!.email;
+        case 'phoneNumber':
+          return user!.phoneNumber;
+        case 'address':
+          return user!.address;
+        case 'trustScore':
+          return user!.trustScore.toString();
+        default:
+          return null;
+      }
+    }
+
+    return null;
+  }
+
+  Widget _infoTile(IconData icon, String label, Object? value) {
+    return ListTile(
+      leading: Icon(icon, color: Color(primaryColour)),
+      title: Text(
+        label,
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+      subtitle: Text(
+        value?.toString() ?? '-',
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: Colors.black,
+        ),
+      ),
+    );
+  }
+}
