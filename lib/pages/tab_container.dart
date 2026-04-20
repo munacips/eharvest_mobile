@@ -3,6 +3,11 @@ import 'package:eharvest_mobile/pages/my_account_page.dart';
 import 'package:eharvest_mobile/pages/buy_page.dart';
 import 'package:eharvest_mobile/pages/sell_page.dart';
 import 'package:eharvest_mobile/pages/logistics_page.dart';
+import 'package:eharvest_mobile/pages/ai_forecast_page.dart';
+import 'package:eharvest_mobile/pages/bulk_pricing_page.dart';
+import 'package:eharvest_mobile/pages/demand_supply_forecast_page.dart';
+import 'package:eharvest_mobile/pages/market_insights_page.dart';
+import 'package:eharvest_mobile/pages/season_recommendations_page.dart';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -74,6 +79,67 @@ class _TabContainerState extends State<TabContainer> {
               ),
             ),
             const ListTile(leading: Icon(Icons.home), title: Text('Home')),
+            ListTile(
+              leading: const Icon(Icons.insights),
+              title: const Text('Forecasts'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AiForecastPage()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.price_check),
+              title: const Text('Bulk Pricing'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BulkPricingPage()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.timeline),
+              title: const Text('Demand & Supply'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DemandSupplyForecastPage(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.agriculture),
+              title: const Text('Recommendations'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SeasonRecommendationsPage(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.public),
+              title: const Text('Market Insights'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MarketInsightsPage(),
+                  ),
+                );
+              },
+            ),
             const ListTile(
               leading: Icon(Icons.settings),
               title: Text('Settings'),

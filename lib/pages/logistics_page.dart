@@ -222,8 +222,7 @@ class LogisticsPageState extends State<LogisticsPage> {
                   ],
                 ),
                 ElevatedButton(
-                  onPressed: () =>
-                      _showTrackingDetails({'id': id, 'produce': produce}),
+                  onPressed: () => _showTrackingDetails(request),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(primaryColour).withOpacity(0.1),
                     foregroundColor: Color(primaryColour),
@@ -276,7 +275,20 @@ class LogisticsPageState extends State<LogisticsPage> {
   }
 
   void _showTrackingDetails(Map<String, dynamic> request) {
-    // This could navigate to a real-time Google Maps screen later
+    final status = (request['status'] ?? '').toString().toUpperCase();
+    final pickupLocation =
+        request['pickupLocation'] ?? request['pickup_location'] ?? 'Unknown';
+    final deliveryLocation =
+        request['deliveryLocation'] ?? request['delivery_location'] ?? 'Unknown';
+    double progress = 0.2;
+    if (status == 'AWAITING_PICKUP') {
+      progress = 0.3;
+    } else if (status == 'IN_TRANSIT') {
+      progress = 0.6;
+    } else if (status == 'DELIVERED') {
+      progress = 1.0;
+    }
+
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -289,13 +301,13 @@ class LogisticsPageState extends State<LogisticsPage> {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            const LinearProgressIndicator(value: 0.6), // Mock progress
+            LinearProgressIndicator(value: progress),
             const SizedBox(height: 20),
-            Text("Current Item: ${request['produce']}"),
-            const Text(
-              "Estimated Delivery: 2 Hours",
-              style: TextStyle(color: Colors.green),
-            ),
+            Text("Status: ${status.isEmpty ? 'UNKNOWN' : status}"),
+            const SizedBox(height: 6),
+            Text("Pickup: $pickupLocation"),
+            const SizedBox(height: 6),
+            Text("Delivery: $deliveryLocation"),
           ],
         ),
       ),

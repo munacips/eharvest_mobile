@@ -551,4 +551,5 @@ const textCharcoalGrey = 0xFF212121;
 
 const api = "http://localhost:8080/api/v1/";
 const authApi = "http://localhost:8080/auth/";
+const aiApi = "http://localhost:8000";
 

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/pages/my_orders_page.dart';
 import 'package:eharvest_mobile/services/order_service.dart';
+import 'package:eharvest_mobile/services/ai_service.dart';
 
 class MyAccountPage extends StatefulWidget {
   const MyAccountPage({super.key});
@@ -23,6 +24,11 @@ class MyAccountPageState extends State<MyAccountPage> {
   String? errorMessage;
   int _pendingOrders = 0;
   List<Order> _buyerOrders = [];
+  bool _aiTrustLoading = false;
+  double? _aiTrustScore;
+  int? _aiTrustScale;
+  int? _aiReviewCount;
+  String? _aiTrustError;
 
   @override
   void initState() {
@@ -144,6 +150,39 @@ class MyAccountPageState extends State<MyAccountPage> {
         errorMessage = 'Error loading user data: $e';
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _refreshAiTrustScore() async {
+    setState(() {
+      _aiTrustLoading = true;
+      _aiTrustError = null;
+    });
+    try {
+      final userId = await AuthService.getUserId();
+      if (userId == null) {
+        throw Exception('User ID unavailable.');
+      }
+      final response = await AiService.trustScore(userId.toString());
+      if (response is Map<String, dynamic>) {
+        setState(() {
+          _aiTrustScore =
+              double.tryParse(response['trust_score']?.toString() ?? '');
+          _aiTrustScale = int.tryParse(response['scale']?.toString() ?? '');
+          _aiReviewCount =
+              int.tryParse(response['review_count']?.toString() ?? '');
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _aiTrustError = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _aiTrustLoading = false;
+        });
+      }
     }
   }
 
@@ -544,38 +583,85 @@ class MyAccountPageState extends State<MyAccountPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Trust Score",
-                    style: TextStyle(color: Colors.grey),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Trust Score",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        trustScore != null ? "$trustScore/100" : '-',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(primaryColour),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    trustScore != null ? "$trustScore/100" : '-',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(primaryColour),
-                    ),
+                ),
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: CircularProgressIndicator(
+                    value: trustValue / 100,
+                    backgroundColor: Colors.grey[200],
+                    color: Color(primaryColour),
+                    strokeWidth: 8,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            SizedBox(
-              width: 60,
-              height: 60,
-              child: CircularProgressIndicator(
-                value: trustValue / 100,
-                backgroundColor: Colors.grey[200],
-                color: Color(primaryColour),
-                strokeWidth: 8,
-              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _aiTrustScore != null
+                        ? 'AI Trust: ${_aiTrustScore!.toStringAsFixed(2)}/${_aiTrustScale ?? 5}'
+                        : 'AI Trust: -',
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _aiTrustLoading ? null : _refreshAiTrustScore,
+                  icon: _aiTrustLoading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh, size: 16),
+                  label: const Text('Refresh'),
+                ),
+              ],
             ),
+            if (_aiReviewCount != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Reviews: $_aiReviewCount',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            if (_aiTrustError != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(
+                    _aiTrustError!,
+                    style: TextStyle(fontSize: 12, color: Colors.red[700]),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
