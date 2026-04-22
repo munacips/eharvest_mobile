@@ -64,7 +64,7 @@ class LogisticsPageState extends State<LogisticsPage> {
       } else {
         setState(() {
           errorMessage =
-              'Failed to fetch logistics requests: \\${response.statusCode}';
+              'Failed to fetch logistics requests: ${response.statusCode}';
           isLoading = false;
         });
       }
@@ -279,7 +279,9 @@ class LogisticsPageState extends State<LogisticsPage> {
     final pickupLocation =
         request['pickupLocation'] ?? request['pickup_location'] ?? 'Unknown';
     final deliveryLocation =
-        request['deliveryLocation'] ?? request['delivery_location'] ?? 'Unknown';
+        request['deliveryLocation'] ??
+        request['delivery_location'] ??
+        'Unknown';
     double progress = 0.2;
     if (status == 'AWAITING_PICKUP') {
       progress = 0.3;

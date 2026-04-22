@@ -30,6 +30,16 @@ class MyAccountPageState extends State<MyAccountPage> {
   int? _aiReviewCount;
   String? _aiTrustError;
 
+  String _normalizeRoleKey(String rawRole) {
+    final normalized = rawRole.trim().toLowerCase().replaceAll(
+      RegExp(r'[\s-]+'),
+      '_',
+    );
+    return normalized.startsWith('role_')
+        ? normalized.substring('role_'.length)
+        : normalized;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -53,26 +63,60 @@ class MyAccountPageState extends State<MyAccountPage> {
         return;
       }
 
-      final roleKey = role.trim().toLowerCase().replaceAll(' ', '_');
+      final roleKey = _normalizeRoleKey(role);
       final endpointByRole = <String, String>{
         'farmer': 'farmers',
         'buyer': 'buyers',
         'logistics_provider': 'logistics-providers',
         'logisticsprovider': 'logistics-providers',
       };
-      final endpoint = endpointByRole[roleKey] ?? 'users';
+      final preferredEndpoint = endpointByRole[roleKey];
+      final candidateEndpoints = <String>[
+        if (preferredEndpoint != null) preferredEndpoint,
+        'farmers',
+        'buyers',
+        'logistics-providers',
+        'users',
+      ];
 
-      final uri = Uri.parse('$api$endpoint/$userId');
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (roleKey == 'farmer') {
+      final triedStatuses = <String>[];
+      String? resolvedEndpoint;
+      dynamic resolvedData;
+
+      for (final endpoint in candidateEndpoints) {
+        final uri = Uri.parse('$api$endpoint/$userId');
+        final response = await http.get(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+        triedStatuses.add('/$endpoint/$userId: ${response.statusCode}');
+        if (response.statusCode == 200) {
+          resolvedEndpoint = endpoint;
+          resolvedData = json.decode(response.body);
+          break;
+        }
+      }
+
+      if (resolvedData != null && resolvedEndpoint != null) {
+        if (resolvedData is! Map<String, dynamic>) {
+          setState(() {
+            errorMessage = 'Invalid user data format received from server.';
+            isLoading = false;
+          });
+          return;
+        }
+        final data = resolvedData;
+        final responseRoleKey = _normalizeRoleKey(
+          data['role']?.toString() ?? '',
+        );
+        final effectiveRoleKey = responseRoleKey.isNotEmpty
+            ? responseRoleKey
+            : roleKey;
+
+        if (effectiveRoleKey == 'farmer' || resolvedEndpoint == 'farmers') {
           farmer = Farmer.fromJson(data);
           user = null;
           buyer = null;
@@ -86,7 +130,8 @@ class MyAccountPageState extends State<MyAccountPage> {
           } catch (_) {
             _pendingOrders = 0;
           }
-        } else if (roleKey == 'buyer') {
+        } else if (effectiveRoleKey == 'buyer' ||
+            resolvedEndpoint == 'buyers') {
           buyer = Buyer.fromJson(data);
           user = null;
           farmer = null;
@@ -123,8 +168,9 @@ class MyAccountPageState extends State<MyAccountPage> {
           } catch (e) {
             _buyerOrders = [];
           }
-        } else if (roleKey == 'logistics_provider' ||
-            roleKey == 'logisticsprovider') {
+        } else if (effectiveRoleKey == 'logistics_provider' ||
+            effectiveRoleKey == 'logisticsprovider' ||
+            resolvedEndpoint == 'logistics-providers') {
           logisticsProvider = LogisticsProvider.fromJson(data);
           user = null;
           farmer = null;
@@ -141,7 +187,7 @@ class MyAccountPageState extends State<MyAccountPage> {
       } else {
         setState(() {
           errorMessage =
-              'Failed to load user data from /$endpoint/$userId: ${response.statusCode}';
+              'Failed to load user data. Tried: ${triedStatuses.join(', ')}';
           isLoading = false;
         });
       }
@@ -166,11 +212,13 @@ class MyAccountPageState extends State<MyAccountPage> {
       final response = await AiService.trustScore(userId.toString());
       if (response is Map<String, dynamic>) {
         setState(() {
-          _aiTrustScore =
-              double.tryParse(response['trust_score']?.toString() ?? '');
+          _aiTrustScore = double.tryParse(
+            response['trust_score']?.toString() ?? '',
+          );
           _aiTrustScale = int.tryParse(response['scale']?.toString() ?? '');
-          _aiReviewCount =
-              int.tryParse(response['review_count']?.toString() ?? '');
+          _aiReviewCount = int.tryParse(
+            response['review_count']?.toString() ?? '',
+          );
         });
       }
     } catch (e) {
@@ -783,8 +831,10 @@ class MyAccountPageState extends State<MyAccountPage> {
     return text.isNotEmpty && text.toLowerCase() != 'null';
   }
 
-  String get _normalizedRole =>
-      (_getField('role')?.toString().trim().toUpperCase() ?? '');
+  String get _normalizedRole {
+    final rawRole = _getField('role')?.toString() ?? '';
+    return _normalizeRoleKey(rawRole).toUpperCase();
+  }
 
   bool get _isFarmer => _normalizedRole == 'FARMER';
   bool get _isBuyer => _normalizedRole == 'BUYER';
