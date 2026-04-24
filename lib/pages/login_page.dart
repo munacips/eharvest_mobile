@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../global_variables.dart';
 import '../services/auth_service.dart';
 
@@ -13,13 +14,54 @@ class _LoginPageState extends State<LoginPage> {
   late TextEditingController _usernameController;
   late TextEditingController _passwordController;
   bool _isLoading = false;
+  bool _rememberPassword = false;
   String? _errorMessage;
+
+  static const String _rememberPasswordKey = 'remember_password';
+  static const String _rememberedUsernameKey = 'remembered_username';
+  static const String _rememberedPasswordKey = 'remembered_password';
 
   @override
   void initState() {
     super.initState();
     _usernameController = TextEditingController();
     _passwordController = TextEditingController();
+    _loadRememberedCredentials();
+  }
+
+  Future<void> _loadRememberedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberPassword = prefs.getBool(_rememberPasswordKey) ?? false;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _rememberPassword = rememberPassword;
+      if (rememberPassword) {
+        _usernameController.text =
+            prefs.getString(_rememberedUsernameKey) ?? '';
+        _passwordController.text =
+            prefs.getString(_rememberedPasswordKey) ?? '';
+      }
+    });
+  }
+
+  Future<void> _persistRememberedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_rememberPasswordKey, _rememberPassword);
+
+    if (_rememberPassword) {
+      await prefs.setString(
+        _rememberedUsernameKey,
+        _usernameController.text.trim(),
+      );
+      await prefs.setString(_rememberedPasswordKey, _passwordController.text);
+    } else {
+      await prefs.remove(_rememberedUsernameKey);
+      await prefs.remove(_rememberedPasswordKey);
+    }
   }
 
   @override
@@ -56,6 +98,8 @@ class _LoginPageState extends State<LoginPage> {
         }
         return;
       }
+
+      await _persistRememberedCredentials();
 
       if (mounted) {
         // Navigate to home page on successful login
@@ -144,40 +188,69 @@ class _LoginPageState extends State<LoginPage> {
                     ),
 
                   // Username field
-                  TextField(
-                    controller: _usernameController,
-                    keyboardType: TextInputType.text,
-                    enabled: !_isLoading,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.person_outline),
-                      hintText: 'Username',
-                      filled: true,
-                      fillColor: const Color(backgroundNeutral),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  AutofillGroup(
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _usernameController,
+                          keyboardType: TextInputType.text,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.username],
+                          enabled: !_isLoading,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.person_outline),
+                            hintText: 'Username',
+                            filled: true,
+                            fillColor: const Color(backgroundNeutral),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                  // Password field
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    enabled: !_isLoading,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      hintText: 'Password',
-                      filled: true,
-                      fillColor: const Color(backgroundNeutral),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
+                        // Password field
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.password],
+                          onSubmitted: (_) =>
+                              _isLoading ? null : _handleLogin(),
+                          enabled: !_isLoading,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            hintText: 'Password',
+                            filled: true,
+                            fillColor: const Color(backgroundNeutral),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
+
+                  SwitchListTile.adaptive(
+                    value: _rememberPassword,
+                    onChanged: _isLoading
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _rememberPassword = value;
+                            });
+                          },
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Remember password',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    dense: true,
+                  ),
 
                   Align(
                     alignment: Alignment.centerRight,

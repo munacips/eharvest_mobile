@@ -320,12 +320,6 @@ class _LogisticsListState extends State<LogisticsList> {
     final order = _readMap(request, <String>['order']);
     final buyer = _readMap(order, <String>['buyer']);
     final farmer = _readMap(order, <String>['farmer']);
-    final orderId = _readString(order, <String>['id']);
-    final orderStatus = _readString(order, <String>['status']);
-    final orderTotal = _readDouble(order, <String>[
-      'totalAmount',
-      'total_amount',
-    ]);
     final buyerPhone = _readString(buyer, <String>[
       'phoneNumber',
       'phone_number',
@@ -334,11 +328,11 @@ class _LogisticsListState extends State<LogisticsList> {
     final accepting = _acceptingIds.contains(requestId);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -349,14 +343,14 @@ class _LogisticsListState extends State<LogisticsList> {
                     'Request #$requestId',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 15,
                     ),
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: 8,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.orange.shade50,
@@ -368,59 +362,43 @@ class _LogisticsListState extends State<LogisticsList> {
                     style: TextStyle(
                       color: Colors.orange.shade800,
                       fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                      fontSize: 11,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             _detailRow(
               Icons.upload_rounded,
               'From',
               pickup.isEmpty ? 'Unknown' : pickup,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             _detailRow(
               Icons.download_rounded,
               'To',
               delivery.isEmpty ? 'Unknown' : delivery,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             _detailRow(Icons.person_outline, 'Buyer', _fullName(buyer)),
             if (buyerPhone.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               _detailRow(Icons.phone_outlined, 'Buyer Phone', buyerPhone),
             ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             _detailRow(Icons.agriculture_outlined, 'Farmer', _fullName(farmer)),
-            const SizedBox(height: 6),
-            _detailRow(
-              Icons.receipt_long,
-              'Order',
-              orderId.isEmpty ? '-' : '#$orderId',
-            ),
-            if (orderStatus.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              _detailRow(Icons.info_outline, 'Order Status', orderStatus),
-            ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             _detailRow(
               Icons.payments_outlined,
               'Price Set',
               '\$${cost.toStringAsFixed(2)}',
             ),
-            const SizedBox(height: 6),
-            _detailRow(
-              Icons.shopping_bag_outlined,
-              'Order Total',
-              orderTotal > 0 ? '\$${orderTotal.toStringAsFixed(2)}' : '-',
-            ),
             if (createdAt.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               _detailRow(Icons.schedule_outlined, 'Created', createdAt),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -436,7 +414,7 @@ class _LogisticsListState extends State<LogisticsList> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(primaryColour),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -453,20 +431,20 @@ class _LogisticsListState extends State<LogisticsList> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: Colors.grey[700]),
-        const SizedBox(width: 8),
+        Icon(icon, size: 15, color: Colors.grey[700]),
+        const SizedBox(width: 6),
         SizedBox(
-          width: 82,
+          width: 76,
           child: Text(
             '$label:',
             style: TextStyle(
               color: Colors.grey[700],
               fontWeight: FontWeight.w600,
-              fontSize: 13,
+              fontSize: 12,
             ),
           ),
         ),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
       ],
     );
   }
@@ -485,7 +463,7 @@ class _LogisticsListState extends State<LogisticsList> {
             ),
           ),
           child: const Text(
-            'Pending Logistics Requests',
+            'Pending Requests',
             style: TextStyle(
               color: Colors.white,
               fontSize: 22,

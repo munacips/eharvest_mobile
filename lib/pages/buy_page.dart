@@ -8,7 +8,16 @@ import 'package:eharvest_mobile/pages/checkout_page.dart';
 import 'package:eharvest_mobile/pages/account_page.dart';
 
 class BuyPage extends StatefulWidget {
-  const BuyPage({super.key});
+  final String? initialSearchQuery;
+  final String? initialCategoryFilter;
+  final bool allowPurchases;
+
+  const BuyPage({
+    super.key,
+    this.initialSearchQuery,
+    this.initialCategoryFilter,
+    this.allowPurchases = true,
+  });
 
   @override
   State<BuyPage> createState() => BuyPageState();
@@ -28,18 +37,63 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
   DateTime? _harvestTo;
   String? _qualityGrade;
   Timer? _searchDebounce;
+  late final TextEditingController _searchController;
+  bool _canPurchase = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _searchQuery = widget.initialSearchQuery?.trim() ?? '';
+    _categoryFilter = widget.initialCategoryFilter?.trim();
+    _searchController = TextEditingController(text: _searchQuery);
+    _loadPurchasePermission();
     fetchProducts();
+  }
+
+  String _normalizeRoleKey(String rawRole) {
+    final normalized = rawRole.trim().toLowerCase().replaceAll(
+      RegExp(r'[\s-]+'),
+      '_',
+    );
+    final baseRole = normalized.startsWith('role_')
+        ? normalized.substring('role_'.length)
+        : normalized;
+
+    switch (baseRole) {
+      case 'buyer':
+        return 'buyer';
+      case 'farmer':
+        return 'farmer';
+      case 'logistics':
+      case 'logistics_provider':
+      case 'logisticsprovider':
+      case 'driver':
+        return 'logistics';
+      default:
+        return baseRole;
+    }
+  }
+
+  Future<void> _loadPurchasePermission() async {
+    final role = await AuthService.getRole();
+    final roleKey = _normalizeRoleKey(role ?? '');
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _canPurchase = widget.allowPurchases && roleKey == 'buyer';
+      if (!_canPurchase) {
+        cart.clear();
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _searchDebounce?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -66,23 +120,19 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
       final Map<String, String> queryParams = {};
       if (_minPrice != null) queryParams['minPrice'] = _minPrice.toString();
       if (_maxPrice != null) queryParams['maxPrice'] = _maxPrice.toString();
-      if (_categoryFilter != null && _categoryFilter!.isNotEmpty){
-
+      if (_categoryFilter != null && _categoryFilter!.isNotEmpty) {
         queryParams['category'] = _categoryFilter!;
       }
-      if (_qualityGrade != null && _qualityGrade!.isNotEmpty){
-
+      if (_qualityGrade != null && _qualityGrade!.isNotEmpty) {
         queryParams['qualityGrade'] = _qualityGrade!;
       }
-      if (_harvestFrom != null){
-
+      if (_harvestFrom != null) {
         queryParams['harvestFrom'] = _harvestFrom!
             .toIso8601String()
             .split('T')
             .first;
       }
-      if (_harvestTo != null){
-
+      if (_harvestTo != null) {
         queryParams['harvestTo'] = _harvestTo!
             .toIso8601String()
             .split('T')
@@ -104,8 +154,6 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
         },
       );
 
-  
-
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body);
 
@@ -121,7 +169,6 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
           dataList = [];
         }
 
-      
         setState(() {
           products = dataList
               .map((e) => Produce.fromJson(e as Map<String, dynamic>))
@@ -129,7 +176,6 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
           isLoading = false;
         });
       } else {
-        
         setState(() {
           errorMessage = 'Failed to fetch products: ${response.statusCode}';
           isLoading = false;
@@ -144,6 +190,16 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
   }
 
   void addToCart(Produce product) {
+    if (!_canPurchase) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Only buyers can place orders. Browsing is still allowed.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() {
       cart.add(product);
     });
@@ -160,6 +216,16 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
     return Scaffold(
       body: Column(
         children: [
+          if (!_canPurchase)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: Colors.grey.shade200,
+              child: const Text(
+                'Browsing only: purchasing is disabled for your account.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
           // 1. Search and Filter Header
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -167,6 +233,7 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
               children: [
                 Expanded(
                   child: TextField(
+                    controller: _searchController,
                     decoration: InputDecoration(
                       hintText: "Search products...",
                       prefixIcon: const Icon(Icons.search),
@@ -194,7 +261,9 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
                   onPressed: () => _showFilterSheet(context),
                   icon: const Icon(Icons.filter_list),
                   style: IconButton.styleFrom(
-                    backgroundColor: Color(primaryColour).withValues(alpha: 0.1),
+                    backgroundColor: Color(
+                      primaryColour,
+                    ).withValues(alpha: 0.1),
                     foregroundColor: Color(primaryColour),
                   ),
                 ),
@@ -223,7 +292,7 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
       ),
 
       // 3. Floating Checkout Button
-      floatingActionButton: cart.isNotEmpty
+      floatingActionButton: _canPurchase && cart.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: () {
                 // Navigate to your checkout page here
@@ -244,8 +313,9 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
 
   Widget _buildProductCard(Produce product) {
     final farmer = product.farmer;
-    final farmerName =
-        (farmer?.username.isNotEmpty ?? false) ? farmer!.username : 'Unknown';
+    final farmerName = (farmer?.username.isNotEmpty ?? false)
+        ? farmer!.username
+        : 'Unknown';
     final trustScore = farmer?.trustScore;
     final canOpenFarmerProfile = farmer?.id != null && farmer!.id > 0;
 
@@ -354,8 +424,11 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
                     IconButton(
                       constraints: const BoxConstraints(),
                       padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.add_circle, color: Colors.green),
-                      onPressed: () => addToCart(product),
+                      icon: Icon(
+                        Icons.add_circle,
+                        color: _canPurchase ? Colors.green : Colors.grey,
+                      ),
+                      onPressed: _canPurchase ? () => addToCart(product) : null,
                     ),
                   ],
                 ),
@@ -547,6 +620,4 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
       },
     );
   }
-
-
 }

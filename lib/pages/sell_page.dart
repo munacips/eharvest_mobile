@@ -3,6 +3,7 @@ import 'package:eharvest_mobile/global_variables.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:geolocator/geolocator.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
 
@@ -15,23 +16,26 @@ class SellPage extends StatefulWidget {
 
 class SellPageState extends State<SellPage> {
   final _formKey = GlobalKey<FormState>();
+  bool _isSeller = false;
+  bool _checkingAccess = true;
 
   // Controllers to match your Java Produce Entity
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _descController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
 
-  final TextEditingController _aiMarketController =
-      TextEditingController(text: 'harare');
-  final TextEditingController _aiMonthController =
-      TextEditingController(text: DateTime.now().month.toString());
-  final TextEditingController _aiLatitudeController =
-      TextEditingController(text: '-17.8');
-  final TextEditingController _aiLongitudeController =
-      TextEditingController(text: '31.0');
-  final TextEditingController _aiCurrencyController =
-      TextEditingController(text: 'USD');
+  final TextEditingController _aiMarketController = TextEditingController(
+    text: 'harare',
+  );
+  final TextEditingController _aiLatitudeController = TextEditingController(
+    text: '-17.8',
+  );
+  final TextEditingController _aiLongitudeController = TextEditingController(
+    text: '31.0',
+  );
+  final TextEditingController _aiCurrencyController = TextEditingController(
+    text: 'USD',
+  );
 
   String _selectedCategory = 'Vegetables';
   String _selectedGrade = 'Grade A';
@@ -46,12 +50,70 @@ class SellPageState extends State<SellPage> {
     'Tubers',
   ];
   final List<String> _grades = ['Grade A', 'Grade B', 'Grade C'];
+  final List<String> _monthNames = const [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
   bool _aiLoading = false;
   double? _aiSuggestedPrice;
   double? _aiBasePrice;
   String? _aiError;
   bool _useLiveSignals = true;
+  int _selectedAiMonth = DateTime.now().month;
+  String _locationStatus = 'Detecting current location...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccess();
+    _loadCurrentLocation();
+  }
+
+  String _normalizeRoleKey(String rawRole) {
+    final normalized = rawRole.trim().toLowerCase().replaceAll(
+      RegExp(r'[\s-]+'),
+      '_',
+    );
+    final baseRole = normalized.startsWith('role_')
+        ? normalized.substring('role_'.length)
+        : normalized;
+
+    switch (baseRole) {
+      case 'farmer':
+        return 'farmer';
+      case 'logistics':
+      case 'logistics_provider':
+      case 'logisticsprovider':
+      case 'driver':
+        return 'logistics';
+      case 'buyer':
+        return 'buyer';
+      default:
+        return baseRole;
+    }
+  }
+
+  Future<void> _loadAccess() async {
+    final role = await AuthService.getRole();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isSeller = _normalizeRoleKey(role ?? '') == 'farmer';
+      _checkingAccess = false;
+    });
+  }
 
   // Function to handle Date Selection
   Future<void> _selectDate(BuildContext context, bool isHarvestDate) async {
@@ -75,11 +137,9 @@ class SellPageState extends State<SellPage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _descController.dispose();
     _quantityController.dispose();
     _priceController.dispose();
     _aiMarketController.dispose();
-    _aiMonthController.dispose();
     _aiLatitudeController.dispose();
     _aiLongitudeController.dispose();
     _aiCurrencyController.dispose();
@@ -88,6 +148,25 @@ class SellPageState extends State<SellPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingAccess) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (!_isSeller) {
+      return const Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Text(
+              'Only sellers can list produce.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -171,16 +250,6 @@ class SellPageState extends State<SellPage> {
               const SizedBox(height: 12),
 
               _buildAiSuggestionCard(),
-
-              const SizedBox(height: 15),
-
-              // Description
-              _buildTextField(
-                _descController,
-                "Description",
-                Icons.description,
-                maxLines: 3,
-              ),
 
               const SizedBox(height: 15),
 
@@ -380,18 +449,38 @@ class SellPageState extends State<SellPage> {
             activeThumbColor: Color(primaryColour),
           ),
           const SizedBox(height: 12),
-          _aiTextField(
-            controller: _aiMarketController,
-            label: 'Market',
-          ),
+          _aiTextField(controller: _aiMarketController, label: 'Market'),
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                child: _aiTextField(
-                  controller: _aiMonthController,
-                  label: 'Month (1-12)',
-                  keyboardType: TextInputType.number,
+                child: DropdownButtonFormField<int>(
+                  initialValue: _selectedAiMonth,
+                  decoration: InputDecoration(
+                    labelText: 'Month',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 12,
+                    ),
+                  ),
+                  items: List.generate(
+                    _monthNames.length,
+                    (index) => DropdownMenuItem<int>(
+                      value: index + 1,
+                      child: Text(_monthNames[index]),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _selectedAiMonth = value;
+                    });
+                  },
                 ),
               ),
               const SizedBox(width: 10),
@@ -411,6 +500,7 @@ class SellPageState extends State<SellPage> {
                   controller: _aiLatitudeController,
                   label: 'Latitude',
                   keyboardType: TextInputType.number,
+                  enabled: false,
                 ),
               ),
               const SizedBox(width: 10),
@@ -419,9 +509,15 @@ class SellPageState extends State<SellPage> {
                   controller: _aiLongitudeController,
                   label: 'Longitude',
                   keyboardType: TextInputType.number,
+                  enabled: false,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _locationStatus,
+            style: TextStyle(color: Colors.grey[600], fontSize: 11),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -441,9 +537,7 @@ class SellPageState extends State<SellPage> {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white,
-                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
                   : const Text(
@@ -470,8 +564,9 @@ class SellPageState extends State<SellPage> {
                 ),
                 TextButton(
                   onPressed: () {
-                    _priceController.text =
-                        _aiSuggestedPrice!.toStringAsFixed(2);
+                    _priceController.text = _aiSuggestedPrice!.toStringAsFixed(
+                      2,
+                    );
                   },
                   child: const Text('Use'),
                 ),
@@ -502,10 +597,12 @@ class SellPageState extends State<SellPage> {
     required TextEditingController controller,
     required String label,
     TextInputType keyboardType = TextInputType.text,
+    bool enabled = true,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      enabled: enabled,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -537,20 +634,16 @@ class SellPageState extends State<SellPage> {
         'market': _aiMarketController.text.trim(),
         'category': _selectedCategory.toLowerCase(),
         'unit': 'KG',
-        'month': int.tryParse(_aiMonthController.text.trim()) ?? 1,
+        'month': _selectedAiMonth,
         'latitude': double.tryParse(_aiLatitudeController.text.trim()) ?? 0.0,
-        'longitude':
-            double.tryParse(_aiLongitudeController.text.trim()) ?? 0.0,
+        'longitude': double.tryParse(_aiLongitudeController.text.trim()) ?? 0.0,
         'currency': _aiCurrencyController.text.trim().isEmpty
             ? 'USD'
             : _aiCurrencyController.text.trim(),
         'priceflag': 'actual',
       };
       final response = _useLiveSignals
-          ? await AiService.autoPricing({
-              ...payload,
-              'use_live_signals': true,
-            })
+          ? await AiService.autoPricing({...payload, 'use_live_signals': true})
           : await AiService.predictPrice(payload);
       double? suggested;
       double? basePrice;
@@ -558,9 +651,7 @@ class SellPageState extends State<SellPage> {
         suggested = double.tryParse(
           response['suggested_price']?.toString() ?? '',
         );
-        basePrice = double.tryParse(
-          response['base_price']?.toString() ?? '',
-        );
+        basePrice = double.tryParse(response['base_price']?.toString() ?? '');
       }
       if (suggested == null) {
         throw Exception('Suggestion unavailable.');
@@ -600,7 +691,7 @@ class SellPageState extends State<SellPage> {
       final produceData = {
         'name': _nameController.text,
         'category': _selectedCategory,
-        'description': _descController.text,
+        'description': _buildAutoDescription(),
         'qualityGrade': _selectedGrade,
         'quantity': double.parse(_quantityController.text),
         'price': double.parse(_priceController.text),
@@ -641,7 +732,6 @@ class SellPageState extends State<SellPage> {
   void _resetForm() {
     _formKey.currentState!.reset();
     _nameController.clear();
-    _descController.clear();
     _quantityController.clear();
     _priceController.clear();
     setState(() {
@@ -649,7 +739,78 @@ class SellPageState extends State<SellPage> {
       _selectedGrade = 'Grade A';
       _harvestDate = DateTime.now();
       _availableDate = DateTime.now();
+      _selectedAiMonth = DateTime.now().month;
     });
+  }
+
+  String _buildAutoDescription() {
+    final produceName = _nameController.text.trim();
+    final quantity = _quantityController.text.trim();
+    final price = _priceController.text.trim();
+    final market = _aiMarketController.text.trim().isEmpty
+        ? 'local market'
+        : _aiMarketController.text.trim();
+
+    return '$produceName ($_selectedCategory, $_selectedGrade) with '
+        '$quantity kg available from '
+        '${intl.DateFormat('yyyy-MM-dd').format(_availableDate)} at '
+        '\$$price per kg in $market. Harvested on '
+        '${intl.DateFormat('yyyy-MM-dd').format(_harvestDate)}.';
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _locationStatus =
+              'Location services are off. Using default coordinates.';
+        });
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _locationStatus =
+              'Location permission denied. Using default coordinates.';
+        });
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _aiLatitudeController.text = position.latitude.toStringAsFixed(6);
+        _aiLongitudeController.text = position.longitude.toStringAsFixed(6);
+        _locationStatus = 'Using your current location coordinates.';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _locationStatus =
+            'Could not fetch current location. Using default coordinates.';
+      });
+    }
   }
 
   void _submitForm() {

@@ -585,12 +585,12 @@ class _OrderPageState extends State<OrderPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Quantity: ${item.quantity}',
+                    'Quantity: ${item.quantity} Kg',
                     style: const TextStyle(fontSize: 13, color: Colors.black87),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Price: ${item.price.toStringAsFixed(2)}',
+                    'Price: \$${item.price.toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 13, color: Colors.black87),
                   ),
                 ],

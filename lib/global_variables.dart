@@ -252,22 +252,22 @@ class LogisticsProvider {
     return LogisticsProvider(
       // User fields
       id: json['id'] ?? 0,
-      nationalId: json['national_id'] ?? '',
-      firstName: json['first_name'] ?? '',
-      lastName: json['last_name'] ?? '',
+      nationalId: json['national_id'] ?? json['nationalId'] ?? '',
+      firstName: json['first_name'] ?? json['firstName'] ?? '',
+      lastName: json['last_name'] ?? json['lastName'] ?? '',
       username: json['username'] ?? '',
       role: json['role'] ?? '',
       email: json['email'] ?? '',
       password: json['password'] ?? '',
-      phoneNumber: json['phone_number'] ?? '',
+      phoneNumber: json['phone_number'] ?? json['phoneNumber'] ?? '',
       address: json['address'] ?? '',
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
-      trustScore: json['trust_score'] ?? 0,
+      trustScore: json['trust_score'] ?? json['trustScore'] ?? 0,
 
       // LogisticsProvider fields
-      licenseNumber: json['license_number'] ?? '',
-      defensiveId: json['defensive_id'] ?? '',
+      licenseNumber: json['license_number'] ?? json['licenseNumber'] ?? '',
+      defensiveId: json['defensive_id'] ?? json['defensiveId'] ?? '',
     );
   }
 
@@ -385,11 +385,20 @@ class Order {
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    final rawOrderDate = json['order_date'] ?? json['orderDate'];
+    final rawTotalAmount =
+        json['total_amount'] ??
+        json['totalAmount'] ??
+        json['total'] ??
+        json['amount'];
+
     return Order(
       id: json['id'] ?? 0,
-      orderDate: DateTime.tryParse(json['order_date'] ?? '') ?? DateTime.now(),
-      totalAmount:
-          double.tryParse(json['total_amount']?.toString() ?? '0') ?? 0.0,
+      orderDate:
+          DateTime.tryParse(rawOrderDate?.toString() ?? '') ?? DateTime.now(),
+      totalAmount: rawTotalAmount is num
+          ? rawTotalAmount.toDouble()
+          : (double.tryParse(rawTotalAmount?.toString() ?? '0') ?? 0.0),
       status: json['status'] ?? '',
       buyer: json['buyer'] != null ? Buyer.fromJson(json['buyer']) : null,
       farmer: json['farmer'] != null ? Farmer.fromJson(json['farmer']) : null,
@@ -455,12 +464,18 @@ class LogisticsRequest {
   factory LogisticsRequest.fromJson(Map<String, dynamic> json) {
     return LogisticsRequest(
       id: json['id'] ?? 0,
-      pickupLocation: json['pickup_location'] ?? '',
-      deliveryLocation: json['delivery_location'] ?? '',
+      pickupLocation: json['pickup_location'] ?? json['pickupLocation'] ?? '',
+      deliveryLocation:
+          json['delivery_location'] ?? json['deliveryLocation'] ?? '',
       status: json['status'] ?? '',
       cost: double.tryParse(json['cost']?.toString() ?? '0') ?? 0.0,
-      assignedProvider: json['assigned_provider'] != null
-          ? LogisticsProvider.fromJson(json['assigned_provider'])
+      assignedProvider:
+          (json['assigned_provider'] ?? json['assignedProvider']) != null
+          ? LogisticsProvider.fromJson(
+              Map<String, dynamic>.from(
+                (json['assigned_provider'] ?? json['assignedProvider']) as Map,
+              ),
+            )
           : null,
       order: json['order'] != null ? Order.fromJson(json['order']) : null,
     );
@@ -502,7 +517,6 @@ class Review {
   }
 }
 
-
 /// --- Transaction Model ---
 /// Based on TransactionDto.java
 class Transaction {
@@ -541,7 +555,6 @@ class Transaction {
   }
 }
 
-
 const primaryColour = 0xFF4CAF50;
 const primaryDarkColour = 0xFF2E7D32;
 const accentColour = 0xFF66BB6A;
@@ -552,4 +565,3 @@ const textCharcoalGrey = 0xFF212121;
 const api = "http://localhost:8080/api/v1/";
 const authApi = "http://localhost:8080/auth/";
 const aiApi = "http://localhost:8000";
-

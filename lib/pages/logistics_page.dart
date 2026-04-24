@@ -16,6 +16,149 @@ class LogisticsPageState extends State<LogisticsPage> {
   List<Map<String, dynamic>> logisticsRequests = [];
   bool isLoading = true;
   String? errorMessage;
+  int? _currentUserId;
+  String _roleKey = '';
+
+  String _normalizeRoleKey(String rawRole) {
+    final normalized = rawRole.trim().toLowerCase().replaceAll(
+      RegExp(r'[\s-]+'),
+      '_',
+    );
+    final baseRole = normalized.startsWith('role_')
+        ? normalized.substring('role_'.length)
+        : normalized;
+
+    switch (baseRole) {
+      case 'farmer':
+      case 'buyer':
+        return baseRole;
+      case 'logistics':
+      case 'logistics_provider':
+      case 'logisticsprovider':
+      case 'driver':
+        return 'logistics';
+      default:
+        return baseRole;
+    }
+  }
+
+  List<Map<String, dynamic>> _decodeLogisticsItems(dynamic payload) {
+    List<dynamic> items = <dynamic>[];
+    if (payload is List) {
+      items = payload;
+    } else if (payload is Map<String, dynamic> && payload['content'] is List) {
+      items = payload['content'] as List<dynamic>;
+    }
+
+    return items
+        .whereType<Map>()
+        .map<Map<String, dynamic>>(
+          (item) => item.map((key, value) => MapEntry(key.toString(), value)),
+        )
+        .toList();
+  }
+
+  String _readString(Map<String, dynamic>? map, List<String> keys) {
+    if (map == null) return '';
+    for (final key in keys) {
+      final value = map[key];
+      if (value != null) {
+        final text = value.toString().trim();
+        if (text.isNotEmpty && text.toLowerCase() != 'null') {
+          return text;
+        }
+      }
+    }
+    return '';
+  }
+
+  int _readInt(
+    Map<String, dynamic>? map,
+    List<String> keys, {
+    int fallback = 0,
+  }) {
+    final text = _readString(map, keys);
+    if (text.isEmpty) return fallback;
+    return int.tryParse(text) ?? fallback;
+  }
+
+  Map<String, dynamic>? _readMap(Map<String, dynamic>? map, List<String> keys) {
+    if (map == null) return null;
+    for (final key in keys) {
+      final value = map[key];
+      if (value is Map) {
+        return value.map((dynamic k, dynamic v) => MapEntry(k.toString(), v));
+      }
+    }
+    return null;
+  }
+
+  bool _isRelatedToCurrentUser(Map<String, dynamic> request) {
+    final userId = _currentUserId;
+    if (userId == null) {
+      return false;
+    }
+
+    final order = _readMap(request, <String>['order']);
+    final assignedProvider = _readMap(request, <String>[
+      'assignedProvider',
+      'assigned_provider',
+      'provider',
+    ]);
+
+    final buyerId =
+        _readInt(order, <String>['buyerId', 'buyer_id'], fallback: -1) > 0
+        ? _readInt(order, <String>['buyerId', 'buyer_id'], fallback: -1)
+        : _readInt(
+            _readMap(order, <String>['buyer']) ??
+                _readMap(request, <String>['buyer']),
+            <String>['id', 'buyerId', 'buyer_id'],
+            fallback: _readInt(request, <String>[
+              'buyerId',
+              'buyer_id',
+            ], fallback: -1),
+          );
+
+    final farmerId =
+        _readInt(order, <String>['farmerId', 'farmer_id'], fallback: -1) > 0
+        ? _readInt(order, <String>['farmerId', 'farmer_id'], fallback: -1)
+        : _readInt(
+            _readMap(order, <String>['farmer', 'seller']) ??
+                _readMap(request, <String>['farmer', 'seller']),
+            <String>['id', 'farmerId', 'farmer_id', 'sellerId', 'seller_id'],
+            fallback: _readInt(request, <String>[
+              'farmerId',
+              'farmer_id',
+              'sellerId',
+              'seller_id',
+            ], fallback: -1),
+          );
+
+    final providerId = _readInt(
+      assignedProvider ?? _readMap(request, <String>['provider']),
+      <String>['id', 'providerId', 'provider_id'],
+      fallback: _readInt(request, <String>[
+        'providerId',
+        'provider_id',
+      ], fallback: -1),
+    );
+
+    final isBuyer = buyerId == userId;
+    final isSeller = farmerId == userId;
+    final isProvider = providerId == userId;
+
+    if (_roleKey == 'buyer') {
+      return isBuyer;
+    }
+    if (_roleKey == 'farmer') {
+      return isSeller;
+    }
+    if (_roleKey == 'logistics') {
+      return isProvider;
+    }
+
+    return isBuyer || isSeller || isProvider;
+  }
 
   @override
   void initState() {
@@ -31,6 +174,8 @@ class LogisticsPageState extends State<LogisticsPage> {
     try {
       // AuthService and api are used as in buy_page.dart
       final token = await AuthService.getToken();
+      final userId = await AuthService.getUserId();
+      final role = await AuthService.getRole();
       if (token == null) {
         setState(() {
           errorMessage = 'Authentication token not found. Please log in again.';
@@ -38,6 +183,17 @@ class LogisticsPageState extends State<LogisticsPage> {
         });
         return;
       }
+      _currentUserId = userId;
+      _roleKey = _normalizeRoleKey(role ?? '');
+
+      if (_currentUserId == null) {
+        setState(() {
+          errorMessage = 'Unable to resolve current user.';
+          isLoading = false;
+        });
+        return;
+      }
+
       final uri = Uri.parse('${api}logistics');
       final response = await http.get(
         uri,
@@ -48,17 +204,10 @@ class LogisticsPageState extends State<LogisticsPage> {
       );
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body);
-        List<dynamic> dataList;
-        if (decoded is List) {
-          dataList = decoded;
-        } else if (decoded is Map<String, dynamic> &&
-            decoded['content'] is List) {
-          dataList = decoded['content'] as List<dynamic>;
-        } else {
-          dataList = [];
-        }
+        final dataList = _decodeLogisticsItems(decoded);
+        final filtered = dataList.where(_isRelatedToCurrentUser).toList();
         setState(() {
-          logisticsRequests = dataList.cast<Map<String, dynamic>>();
+          logisticsRequests = filtered;
           isLoading = false;
         });
       } else {

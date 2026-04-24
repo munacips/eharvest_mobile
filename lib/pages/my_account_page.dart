@@ -4,9 +4,12 @@ import 'dart:convert';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/pages/logistics_list.dart';
+import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:eharvest_mobile/pages/my_orders_page.dart';
 import 'package:eharvest_mobile/services/order_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MyAccountPage extends StatefulWidget {
   const MyAccountPage({super.key});
@@ -23,21 +26,39 @@ class MyAccountPageState extends State<MyAccountPage> {
   bool isLoading = true;
   String? errorMessage;
   int _pendingOrders = 0;
+  int _currentLogisticsRequests = 0;
   List<Order> _buyerOrders = [];
+  List<Map<String, dynamic>> _presentDeliveries = [];
+  List<Map<String, dynamic>> _pastDeliveries = [];
   bool _aiTrustLoading = false;
   double? _aiTrustScore;
   int? _aiTrustScale;
   int? _aiReviewCount;
   String? _aiTrustError;
+  bool _driverDeliveriesExpanded = false;
+  String _resolvedRoleKey = '';
 
   String _normalizeRoleKey(String rawRole) {
     final normalized = rawRole.trim().toLowerCase().replaceAll(
       RegExp(r'[\s-]+'),
       '_',
     );
-    return normalized.startsWith('role_')
+    final baseRole = normalized.startsWith('role_')
         ? normalized.substring('role_'.length)
         : normalized;
+
+    // Canonical DB role keys are farmer, buyer, and logistics.
+    switch (baseRole) {
+      case 'farmer':
+      case 'buyer':
+        return baseRole;
+      case 'logistics':
+      case 'logistics_provider':
+      case 'logisticsprovider':
+        return 'logistics';
+      default:
+        return baseRole;
+    }
   }
 
   @override
@@ -51,6 +72,7 @@ class MyAccountPageState extends State<MyAccountPage> {
       isLoading = true;
       errorMessage = null;
     });
+    _resolvedRoleKey = '';
     try {
       final token = await AuthService.getToken();
       final userId = await AuthService.getUserId();
@@ -64,11 +86,11 @@ class MyAccountPageState extends State<MyAccountPage> {
       }
 
       final roleKey = _normalizeRoleKey(role);
+      _resolvedRoleKey = roleKey;
       final endpointByRole = <String, String>{
         'farmer': 'farmers',
         'buyer': 'buyers',
-        'logistics_provider': 'logistics-providers',
-        'logisticsprovider': 'logistics-providers',
+        'logistics': 'logistics-providers',
       };
       final preferredEndpoint = endpointByRole[roleKey];
       final candidateEndpoints = <String>[
@@ -115,6 +137,7 @@ class MyAccountPageState extends State<MyAccountPage> {
         final effectiveRoleKey = responseRoleKey.isNotEmpty
             ? responseRoleKey
             : roleKey;
+        _resolvedRoleKey = effectiveRoleKey;
 
         if (effectiveRoleKey == 'farmer' || resolvedEndpoint == 'farmers') {
           farmer = Farmer.fromJson(data);
@@ -168,8 +191,7 @@ class MyAccountPageState extends State<MyAccountPage> {
           } catch (e) {
             _buyerOrders = [];
           }
-        } else if (effectiveRoleKey == 'logistics_provider' ||
-            effectiveRoleKey == 'logisticsprovider' ||
+        } else if (effectiveRoleKey == 'logistics' ||
             resolvedEndpoint == 'logistics-providers') {
           logisticsProvider = LogisticsProvider.fromJson(data);
           user = null;
@@ -180,6 +202,14 @@ class MyAccountPageState extends State<MyAccountPage> {
           farmer = null;
           buyer = null;
           logisticsProvider = null;
+        }
+        if (effectiveRoleKey == 'logistics' ||
+            resolvedEndpoint == 'logistics-providers') {
+          await _fetchDriverLogisticsData(token, userId);
+        } else {
+          _currentLogisticsRequests = 0;
+          _presentDeliveries = [];
+          _pastDeliveries = [];
         }
         setState(() {
           isLoading = false;
@@ -232,6 +262,285 @@ class MyAccountPageState extends State<MyAccountPage> {
         });
       }
     }
+  }
+
+  Future<void> _fetchDriverLogisticsData(String token, int providerId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${api}logistics'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        _currentLogisticsRequests = 0;
+        _presentDeliveries = [];
+        _pastDeliveries = [];
+        return;
+      }
+
+      final items = _decodeLogisticsItems(json.decode(response.body));
+      final present = items
+          .where(
+            (item) =>
+                _isAssignedToProvider(item, providerId) &&
+                _isPresentDelivery(item),
+          )
+          .toList();
+      final past = items
+          .where(
+            (item) =>
+                _isAssignedToProvider(item, providerId) &&
+                _isPastDelivery(item),
+          )
+          .toList();
+
+      _sortLogisticsItems(present);
+      _sortLogisticsItems(past);
+
+      _currentLogisticsRequests = items
+          .where(_isPendingLogisticsRequest)
+          .length;
+      _presentDeliveries = present;
+      _pastDeliveries = past;
+    } catch (_) {
+      _currentLogisticsRequests = 0;
+      _presentDeliveries = [];
+      _pastDeliveries = [];
+    }
+  }
+
+  List<Map<String, dynamic>> _decodeLogisticsItems(dynamic payload) {
+    List<dynamic> items = <dynamic>[];
+    if (payload is List) {
+      items = payload;
+    } else if (payload is Map<String, dynamic> && payload['content'] is List) {
+      items = payload['content'] as List<dynamic>;
+    }
+
+    return items
+        .whereType<Map>()
+        .map<Map<String, dynamic>>(
+          (item) => item.map((key, value) => MapEntry(key.toString(), value)),
+        )
+        .toList();
+  }
+
+  String _normalizeStatus(String raw) {
+    return raw.trim().toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
+  }
+
+  bool _isPendingLogisticsRequest(Map<String, dynamic> request) {
+    final status = _normalizeStatus(_readString(request, <String>['status']));
+    const closedStatuses = <String>{
+      'accepted',
+      'assigned',
+      'rejected',
+      'cancelled',
+      'in_transit',
+      'delivered',
+      'completed',
+    };
+    if (status.isEmpty) {
+      return true;
+    }
+    return !closedStatuses.contains(status);
+  }
+
+  bool _isAssignedToProvider(Map<String, dynamic> request, int providerId) {
+    final assignedProvider = _readMap(request, <String>[
+      'assignedProvider',
+      'assigned_provider',
+      'provider',
+    ]);
+    if (assignedProvider == null) {
+      return false;
+    }
+
+    final assignedProviderId = _readInt(assignedProvider, <String>[
+      'id',
+      'providerId',
+      'provider_id',
+    ], fallback: -1);
+    return assignedProviderId == providerId;
+  }
+
+  bool _isPresentDelivery(Map<String, dynamic> request) {
+    final status = _normalizeStatus(_readString(request, <String>['status']));
+    return <String>{'accepted', 'assigned', 'in_transit'}.contains(status);
+  }
+
+  bool _isPastDelivery(Map<String, dynamic> request) {
+    final status = _normalizeStatus(_readString(request, <String>['status']));
+    return <String>{'delivered', 'completed'}.contains(status);
+  }
+
+  void _sortLogisticsItems(List<Map<String, dynamic>> items) {
+    items.sort((a, b) {
+      final aDate = _readDate(a);
+      final bDate = _readDate(b);
+      if (aDate != null && bDate != null) {
+        return bDate.compareTo(aDate);
+      }
+      return _readInt(b, <String>['id']).compareTo(_readInt(a, <String>['id']));
+    });
+  }
+
+  DateTime? _readDate(Map<String, dynamic> request) {
+    final order = _readMap(request, <String>['order']);
+    final raw = _readString(order, <String>[
+      'orderDate',
+      'order_date',
+      'createdAt',
+      'created_at',
+    ]);
+    if (raw.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(raw);
+  }
+
+  String _readString(Map<String, dynamic>? map, List<String> keys) {
+    if (map == null) return '';
+    for (final key in keys) {
+      final value = map[key];
+      if (value != null) {
+        final text = value.toString().trim();
+        if (text.isNotEmpty && text.toLowerCase() != 'null') {
+          return text;
+        }
+      }
+    }
+    return '';
+  }
+
+  int _readInt(
+    Map<String, dynamic>? map,
+    List<String> keys, {
+    int fallback = 0,
+  }) {
+    final text = _readString(map, keys);
+    if (text.isEmpty) return fallback;
+    return int.tryParse(text) ?? fallback;
+  }
+
+  bool _readBool(Map<String, dynamic>? map, List<String> keys) {
+    final text = _readString(map, keys).toLowerCase();
+    return text == 'true' || text == '1';
+  }
+
+  double _readDouble(Map<String, dynamic>? map, List<String> keys) {
+    final text = _readString(map, keys);
+    if (text.isEmpty) return 0;
+    return double.tryParse(text) ?? 0;
+  }
+
+  Map<String, dynamic>? _readMap(
+    Map<String, dynamic>? source,
+    List<String> keys,
+  ) {
+    if (source == null) return null;
+    for (final key in keys) {
+      final value = source[key];
+      if (value is Map<String, dynamic>) {
+        return value;
+      }
+      if (value is Map) {
+        return value.map((k, v) => MapEntry(k.toString(), v));
+      }
+    }
+    return null;
+  }
+
+  String _formatDeliveryStatus(String rawStatus) {
+    final normalized = _normalizeStatus(rawStatus);
+    if (normalized.isEmpty) {
+      return 'UNKNOWN';
+    }
+    return normalized
+        .split('_')
+        .map((part) => part.isEmpty ? part : part.toUpperCase())
+        .join(' ');
+  }
+
+  Color _deliveryStatusColor(String rawStatus) {
+    switch (_normalizeStatus(rawStatus)) {
+      case 'accepted':
+      case 'assigned':
+        return Colors.blue;
+      case 'in_transit':
+        return Colors.orange;
+      case 'delivered':
+      case 'completed':
+        return Colors.green;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  LogisticsRequest _toLogisticsRequest(Map<String, dynamic> request) {
+    final assignedProviderJson = _readMap(request, <String>[
+      'assignedProvider',
+      'assigned_provider',
+      'provider',
+    ]);
+
+    return LogisticsRequest(
+      id: _readInt(request, <String>['id']),
+      pickupLocation: _readString(request, <String>[
+        'pickupLocation',
+        'pickup_location',
+      ]),
+      deliveryLocation: _readString(request, <String>[
+        'deliveryLocation',
+        'delivery_location',
+      ]),
+      status: _readString(request, <String>['status']),
+      cost: _readDouble(request, <String>['cost']),
+      assignedProvider: assignedProviderJson == null
+          ? null
+          : LogisticsProvider(
+              id: _readInt(assignedProviderJson, <String>['id']),
+              nationalId: _readString(assignedProviderJson, <String>[
+                'nationalId',
+                'national_id',
+              ]),
+              firstName: _readString(assignedProviderJson, <String>[
+                'firstName',
+                'first_name',
+              ]),
+              lastName: _readString(assignedProviderJson, <String>[
+                'lastName',
+                'last_name',
+              ]),
+              username: _readString(assignedProviderJson, <String>['username']),
+              role: _readString(assignedProviderJson, <String>['role']),
+              email: _readString(assignedProviderJson, <String>['email']),
+              password: _readString(assignedProviderJson, <String>['password']),
+              phoneNumber: _readString(assignedProviderJson, <String>[
+                'phoneNumber',
+                'phone_number',
+              ]),
+              address: _readString(assignedProviderJson, <String>['address']),
+              active: _readBool(assignedProviderJson, <String>['active']),
+              verified: _readBool(assignedProviderJson, <String>['verified']),
+              trustScore: _readInt(assignedProviderJson, <String>[
+                'trustScore',
+                'trust_score',
+              ]),
+              licenseNumber: _readString(assignedProviderJson, <String>[
+                'licenseNumber',
+                'license_number',
+              ]),
+              defensiveId: _readString(assignedProviderJson, <String>[
+                'defensiveId',
+                'defensive_id',
+              ]),
+            ),
+      order: null,
+    );
   }
 
   @override
@@ -330,6 +639,24 @@ class MyAccountPageState extends State<MyAccountPage> {
                       ),
                       child: _buildBuyerOrdersCard(),
                     ),
+                  if (_showDriverCards)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: 16.0,
+                        left: 16,
+                        right: 16,
+                      ),
+                      child: _buildDriverRequestsCard(),
+                    ),
+                  if (_showDriverCards)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: 16.0,
+                        left: 16,
+                        right: 16,
+                      ),
+                      child: _buildDriverDeliveriesCard(),
+                    ),
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -363,6 +690,66 @@ class MyAccountPageState extends State<MyAccountPage> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildDriverRequestsCard() {
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const LogisticsList()),
+        );
+        fetchUserData();
+      },
+      child: Card(
+        color: Colors.teal[50],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.local_shipping, color: Colors.teal),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'Current Logistics Requests',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal[900],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.teal,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _currentLogisticsRequests.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -508,6 +895,219 @@ class MyAccountPageState extends State<MyAccountPage> {
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDriverDeliveriesCard() {
+    final totalDeliveries = _presentDeliveries.length + _pastDeliveries.length;
+
+    return Card(
+      color: Colors.green[50],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(15),
+              onTap: () {
+                setState(() {
+                  _driverDeliveriesExpanded = !_driverDeliveriesExpanded;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8.0,
+                  horizontal: 16.0,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.inventory_2_outlined, color: Colors.green),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'My Deliveries',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[900],
+                            ),
+                          ),
+                          Text(
+                            '${_presentDeliveries.length} present | ${_pastDeliveries.length} past',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      _driverDeliveriesExpanded
+                          ? Icons.expand_less
+                          : Icons.expand_more,
+                      color: Colors.green[900],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_driverDeliveriesExpanded || totalDeliveries > 0)
+              const Divider(height: 1, color: Colors.blueGrey),
+            if (totalDeliveries == 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16.0,
+                  horizontal: 16.0,
+                ),
+                child: Text(
+                  'No accepted deliveries yet.',
+                  style: TextStyle(color: Colors.green[900]),
+                ),
+              )
+            else ...[
+              _buildDeliveryGroup(
+                title: 'Present Deliveries',
+                deliveries: _presentDeliveries,
+                emptyText: 'No present deliveries.',
+              ),
+              const Divider(height: 1),
+              _buildDeliveryGroup(
+                title: 'Past Deliveries',
+                deliveries: _pastDeliveries,
+                emptyText: 'No past deliveries yet.',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeliveryGroup({
+    required String title,
+    required List<Map<String, dynamic>> deliveries,
+    required String emptyText,
+  }) {
+    final visibleDeliveries = _driverDeliveriesExpanded
+        ? deliveries
+        : deliveries.take(3).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
+            child: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (deliveries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
+              child: Text(
+                emptyText,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            )
+          else ...[
+            ...visibleDeliveries.map(_buildDeliveryItem),
+            if (!_driverDeliveriesExpanded && deliveries.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(left: 16.0, top: 4.0),
+                child: Text(
+                  '+${deliveries.length - 3} more',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryItem(Map<String, dynamic> delivery) {
+    final deliveryId = _readInt(delivery, <String>['id']);
+    final pickup = _readString(delivery, <String>[
+      'pickupLocation',
+      'pickup_location',
+    ]);
+    final dropOff = _readString(delivery, <String>[
+      'deliveryLocation',
+      'delivery_location',
+    ]);
+    final status = _readString(delivery, <String>['status']);
+    final routeText =
+        '${pickup.isEmpty ? 'Unknown pickup' : pickup} -> '
+        '${dropOff.isEmpty ? 'Unknown delivery' : dropOff}';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LogisticsRequestPage(
+              logisticsRequest: _toLogisticsRequest(delivery),
+              allowEditing: false,
+            ),
+          ),
+        );
+        fetchUserData();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Delivery #$deliveryId',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    routeText,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _deliveryStatusColor(status).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _formatDeliveryStatus(status),
+                style: TextStyle(
+                  color: _deliveryStatusColor(status),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -832,13 +1432,17 @@ class MyAccountPageState extends State<MyAccountPage> {
   }
 
   String get _normalizedRole {
+    if (_resolvedRoleKey.isNotEmpty) {
+      return _resolvedRoleKey;
+    }
     final rawRole = _getField('role')?.toString() ?? '';
-    return _normalizeRoleKey(rawRole).toUpperCase();
+    return _normalizeRoleKey(rawRole);
   }
 
-  bool get _isFarmer => _normalizedRole == 'FARMER';
-  bool get _isBuyer => _normalizedRole == 'BUYER';
-  bool get _isLogisticsProvider => _normalizedRole == 'LOGISTICS_PROVIDER';
+  bool get _isFarmer => _normalizedRole == 'farmer';
+  bool get _isBuyer => _normalizedRole == 'buyer';
+  bool get _isLogisticsProvider => _normalizedRole == 'logistics';
+  bool get _showDriverCards => _isLogisticsProvider;
 
   Object? _getField(String key) {
     // Farmer fields
@@ -1042,10 +1646,28 @@ class MyAccountPageState extends State<MyAccountPage> {
     );
   }
 
+  Future<void> _logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      if (mounted) {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Error during logout')));
+      }
+    }
+  }
+
   Widget _buildLogoutButton() {
     return TextButton.icon(
       onPressed: () {
-        // Integrate with your existing logout logic in TabContainer
+        _logout();
       },
       icon: const Icon(Icons.logout, color: Colors.red),
       label: const Text(

@@ -3,16 +3,17 @@ import 'package:eharvest_mobile/global_variables.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:eharvest_mobile/services/auth_service.dart';
-import 'package:eharvest_mobile/services/ai_service.dart';
 
 class LogisticsRequestPage extends StatefulWidget {
   final LogisticsRequest logisticsRequest;
   final VoidCallback? onUpdate;
+  final bool allowEditing;
 
   const LogisticsRequestPage({
     super.key,
     required this.logisticsRequest,
     this.onUpdate,
+    this.allowEditing = true,
   });
 
   @override
@@ -24,9 +25,6 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
   late TextEditingController _deliveryLocationController;
   bool _isEditing = false;
   bool _isSaving = false;
-  bool _matchLoading = false;
-  List<Map<String, dynamic>> _matches = [];
-  String? _matchError;
 
   @override
   void initState() {
@@ -112,51 +110,6 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
     }
   }
 
-  Future<void> _fetchMatches() async {
-    setState(() {
-      _matchLoading = true;
-      _matchError = null;
-      _matches = [];
-    });
-    try {
-      final response = await AiService.logisticsMatch({
-        'request_id': _logisticsRequest.id.toString(),
-        'top_n': 3,
-      });
-      if (response is Map<String, dynamic>) {
-        final matches = response['matches'];
-        if (matches is List) {
-          setState(() {
-            _matches = matches.whereType<Map<String, dynamic>>().toList();
-          });
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _matchError = e.toString();
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _matchLoading = false;
-        });
-      }
-    }
-  }
-
-  String _providerName(Map<String, dynamic> provider) {
-    final name = provider['name'] ?? provider['companyName'];
-    if (name != null && name.toString().trim().isNotEmpty) {
-      return name.toString();
-    }
-    final username = provider['username'];
-    if (username != null && username.toString().trim().isNotEmpty) {
-      return username.toString();
-    }
-    final id = provider['id'] ?? provider['provider_id'];
-    return id != null ? 'Provider $id' : 'Provider';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -170,7 +123,7 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          if (!_isEditing)
+          if (widget.allowEditing && !_isEditing)
             IconButton(
               icon: const Icon(Icons.edit),
               onPressed: () {
@@ -179,7 +132,7 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
                 });
               },
             ),
-          if (_isEditing)
+          if (widget.allowEditing && _isEditing)
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () {
@@ -297,10 +250,8 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
                   ),
                 ],
               ),
-            const SizedBox(height: 24),
-            _buildMatchesSection(),
             const SizedBox(height: 30),
-            if (_isEditing)
+            if (widget.allowEditing && _isEditing)
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -381,101 +332,18 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
     );
   }
 
-  Widget _buildMatchesSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.auto_awesome, color: Color(primaryColour), size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'Suggested Providers',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: _matchLoading ? null : _fetchMatches,
-                child: _matchLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Find Matches'),
-              ),
-            ],
-          ),
-          if (_matchError != null)
-            Text(
-              _matchError!,
-              style: TextStyle(color: Colors.red[700], fontSize: 12),
-            ),
-          if (_matches.isEmpty && !_matchLoading && _matchError == null)
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0),
-              child: Text(
-                'No matches yet. Tap Find Matches to see suggestions.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ),
-          if (_matches.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ..._matches.map((match) {
-              final provider = match['provider'] as Map<String, dynamic>? ?? {};
-              final score = match['score'];
-              final cost = match['estimated_cost'];
-              final distance = match['pickup_distance_km'];
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.local_shipping, color: Color(primaryColour)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _providerName(provider),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            'Score: ${score ?? '-'} | Cost: ${cost ?? '-'} | Distance: ${distance ?? '-'} km',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _statusChip(String status) {
     Color color;
     switch (status.toLowerCase()) {
       case 'pending':
         color = Colors.orange;
         break;
+      case 'accepted':
       case 'assigned':
         color = Colors.blue;
+        break;
+      case 'in_transit':
+        color = Colors.orange;
         break;
       case 'completed':
       case 'delivered':

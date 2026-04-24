@@ -8,6 +8,7 @@ import 'package:eharvest_mobile/pages/bulk_pricing_page.dart';
 import 'package:eharvest_mobile/pages/demand_supply_forecast_page.dart';
 import 'package:eharvest_mobile/pages/market_insights_page.dart';
 import 'package:eharvest_mobile/pages/season_recommendations_page.dart';
+import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,25 +22,100 @@ class TabContainer extends StatefulWidget {
 
 class _TabContainerState extends State<TabContainer> {
   int _currentIndex = 0;
+  String _roleKey = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  String _normalizeRoleKey(String rawRole) {
+    final normalized = rawRole.trim().toLowerCase().replaceAll(
+      RegExp(r'[\s-]+'),
+      '_',
+    );
+    final baseRole = normalized.startsWith('role_')
+        ? normalized.substring('role_'.length)
+        : normalized;
+
+    switch (baseRole) {
+      case 'farmer':
+      case 'buyer':
+        return baseRole;
+      case 'logistics':
+      case 'logistics_provider':
+      case 'logisticsprovider':
+      case 'driver':
+        return 'logistics';
+      default:
+        return baseRole;
+    }
+  }
+
+  Future<void> _loadRole() async {
+    final role = await AuthService.getRole();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _roleKey = _normalizeRoleKey(role ?? '');
+      _currentIndex = 0;
+    });
+  }
+
+  bool get _canAccessBuy => _roleKey == 'buyer';
+  bool get _canAccessSell => _roleKey == 'farmer';
+
+  List<({Widget page, BottomNavigationBarItem item})> _visibleTabs() {
+    return <({Widget page, BottomNavigationBarItem item})>[
+      (
+        page: const HomePage(),
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.home),
+          label: 'Home',
+        ),
+      ),
+      if (_canAccessBuy)
+        (
+          page: const BuyPage(),
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.money),
+            label: 'Buy',
+          ),
+        ),
+      if (_canAccessSell)
+        (
+          page: const SellPage(),
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.sell),
+            label: 'Sell',
+          ),
+        ),
+      (
+        page: const LogisticsPage(),
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.local_shipping),
+          label: 'Logistics',
+        ),
+      ),
+      (
+        page: const MyAccountPage(),
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.account_circle),
+          label: 'My Account',
+        ),
+      ),
+    ];
+  }
 
   // Build the selected page on-demand so it is recreated each time
   // the tab is opened. This avoids keeping pages alive in memory
   // (as IndexedStack does) and forces a fresh load on each selection.
   Widget _buildCurrentPage() {
-    switch (_currentIndex) {
-      case 0:
-        return HomePage();
-      case 1:
-        return BuyPage();
-      case 2:
-        return SellPage();
-      case 3:
-        return LogisticsPage();
-      case 4:
-        return MyAccountPage();
-      default:
-        return HomePage();
-    }
+    final tabs = _visibleTabs();
+    final index = _currentIndex.clamp(0, tabs.length - 1);
+    return tabs[index].page;
   }
 
   Future<void> _logout() async {
@@ -134,9 +210,7 @@ class _TabContainerState extends State<TabContainer> {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const MarketInsightsPage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const MarketInsightsPage()),
                 );
               },
             ),
@@ -156,29 +230,23 @@ class _TabContainerState extends State<TabContainer> {
         ),
       ),
       body: _buildCurrentPage(),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+      bottomNavigationBar: Builder(
+        builder: (context) {
+          final tabs = _visibleTabs();
+          final index = _currentIndex.clamp(0, tabs.length - 1);
+          return BottomNavigationBar(
+            currentIndex: index,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: Color(primaryColour),
+            unselectedItemColor: Colors.grey,
+            items: tabs.map((tab) => tab.item).toList(),
+          );
         },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Color(primaryColour),
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.money), label: 'Buy'),
-          BottomNavigationBarItem(icon: Icon(Icons.sell), label: 'Sell'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_shipping),
-            label: 'Logistics',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle),
-            label: 'My Account',
-          ),
-        ],
       ),
     );
   }
