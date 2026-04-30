@@ -13,7 +13,7 @@ class LogisticsPage extends StatefulWidget {
 }
 
 class LogisticsPageState extends State<LogisticsPage> {
-  List<Map<String, dynamic>> logisticsRequests = [];
+  List<LogisticsRequest> logisticsRequests = [];
   bool isLoading = true;
   String? errorMessage;
   int? _currentUserId;
@@ -42,7 +42,7 @@ class LogisticsPageState extends State<LogisticsPage> {
     }
   }
 
-  List<Map<String, dynamic>> _decodeLogisticsItems(dynamic payload) {
+  List<LogisticsRequest> _parseLogisticsItems(dynamic payload) {
     List<dynamic> items = <dynamic>[];
     if (payload is List) {
       items = payload;
@@ -52,8 +52,10 @@ class LogisticsPageState extends State<LogisticsPage> {
 
     return items
         .whereType<Map>()
-        .map<Map<String, dynamic>>(
-          (item) => item.map((key, value) => MapEntry(key.toString(), value)),
+        .map<LogisticsRequest>(
+          (item) => LogisticsRequest.fromJson(
+            item.map((key, value) => MapEntry(key.toString(), value)),
+          ),
         )
         .toList();
   }
@@ -93,69 +95,21 @@ class LogisticsPageState extends State<LogisticsPage> {
     return null;
   }
 
-  bool _isRelatedToCurrentUser(Map<String, dynamic> request) {
+  bool _isRelatedToCurrentUser(LogisticsRequest request) {
     final userId = _currentUserId;
-    if (userId == null) {
-      return false;
-    }
+    if (userId == null) return false;
 
-    final order = _readMap(request, <String>['order']);
-    final assignedProvider = _readMap(request, <String>[
-      'assignedProvider',
-      'assigned_provider',
-      'provider',
-    ]);
+    final buyerId = request.order?.buyer?.id;
+    final farmerId = request.order?.farmer?.id;
+    final providerId = request.assignedProvider?.id;
 
-    final buyerId =
-        _readInt(order, <String>['buyerId', 'buyer_id'], fallback: -1) > 0
-        ? _readInt(order, <String>['buyerId', 'buyer_id'], fallback: -1)
-        : _readInt(
-            _readMap(order, <String>['buyer']) ??
-                _readMap(request, <String>['buyer']),
-            <String>['id', 'buyerId', 'buyer_id'],
-            fallback: _readInt(request, <String>[
-              'buyerId',
-              'buyer_id',
-            ], fallback: -1),
-          );
+    final isBuyer = buyerId != null && buyerId == userId;
+    final isSeller = farmerId != null && farmerId == userId;
+    final isProvider = providerId != null && providerId == userId;
 
-    final farmerId =
-        _readInt(order, <String>['farmerId', 'farmer_id'], fallback: -1) > 0
-        ? _readInt(order, <String>['farmerId', 'farmer_id'], fallback: -1)
-        : _readInt(
-            _readMap(order, <String>['farmer', 'seller']) ??
-                _readMap(request, <String>['farmer', 'seller']),
-            <String>['id', 'farmerId', 'farmer_id', 'sellerId', 'seller_id'],
-            fallback: _readInt(request, <String>[
-              'farmerId',
-              'farmer_id',
-              'sellerId',
-              'seller_id',
-            ], fallback: -1),
-          );
-
-    final providerId = _readInt(
-      assignedProvider ?? _readMap(request, <String>['provider']),
-      <String>['id', 'providerId', 'provider_id'],
-      fallback: _readInt(request, <String>[
-        'providerId',
-        'provider_id',
-      ], fallback: -1),
-    );
-
-    final isBuyer = buyerId == userId;
-    final isSeller = farmerId == userId;
-    final isProvider = providerId == userId;
-
-    if (_roleKey == 'buyer') {
-      return isBuyer;
-    }
-    if (_roleKey == 'farmer') {
-      return isSeller;
-    }
-    if (_roleKey == 'logistics') {
-      return isProvider;
-    }
+    if (_roleKey == 'buyer') return isBuyer;
+    if (_roleKey == 'farmer') return isSeller;
+    if (_roleKey == 'logistics') return isProvider;
 
     return isBuyer || isSeller || isProvider;
   }
@@ -204,7 +158,7 @@ class LogisticsPageState extends State<LogisticsPage> {
       );
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body);
-        final dataList = _decodeLogisticsItems(decoded);
+        final dataList = _parseLogisticsItems(decoded);
         final filtered = dataList.where(_isRelatedToCurrentUser).toList();
         setState(() {
           logisticsRequests = filtered;
@@ -277,23 +231,19 @@ class LogisticsPageState extends State<LogisticsPage> {
     );
   }
 
-  Widget _buildLogisticsCard(Map<String, dynamic> request) {
-    // Defensive: fallback for missing/null fields
-    final status = (request['status'] ?? '').toString();
-    final cost = (request['cost'] is num)
-        ? (request['cost'] as num).toDouble()
-        : double.tryParse(request['cost']?.toString() ?? '') ?? 0.0;
-    final pickupLocation =
-        request['pickupLocation'] ??
-        request['pickup_location'] ??
-        'Unknown Pickup';
-    final deliveryLocation =
-        request['deliveryLocation'] ??
-        request['delivery_location'] ??
-        'Unknown Delivery';
-    final provider = request['provider'] ?? 'Unknown Provider';
-    final produce = request['produce'] ?? 'Produce';
-    final id = request['id'] ?? 'ID';
+  Widget _buildLogisticsCard(LogisticsRequest request) {
+    // Use model fields with defensives
+    final status = request.status;
+    final cost = request.cost;
+    final pickupLocation = (request.pickupLocation.isNotEmpty)
+        ? request.pickupLocation
+        : 'Unknown Pickup';
+    final deliveryLocation = (request.deliveryLocation.isNotEmpty)
+        ? request.deliveryLocation
+        : 'Unknown Delivery';
+    final provider =
+        request.assignedProvider?.displayName ?? 'Unknown Provider';
+    final id = request.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -423,14 +373,14 @@ class LogisticsPageState extends State<LogisticsPage> {
     );
   }
 
-  void _showTrackingDetails(Map<String, dynamic> request) {
-    final status = (request['status'] ?? '').toString().toUpperCase();
-    final pickupLocation =
-        request['pickupLocation'] ?? request['pickup_location'] ?? 'Unknown';
-    final deliveryLocation =
-        request['deliveryLocation'] ??
-        request['delivery_location'] ??
-        'Unknown';
+  void _showTrackingDetails(LogisticsRequest request) {
+    final status = (request.status).toString().toUpperCase();
+    final pickupLocation = request.pickupLocation.isNotEmpty
+        ? request.pickupLocation
+        : 'Unknown';
+    final deliveryLocation = request.deliveryLocation.isNotEmpty
+        ? request.deliveryLocation
+        : 'Unknown';
     double progress = 0.2;
     if (status == 'AWAITING_PICKUP') {
       progress = 0.3;
@@ -448,7 +398,7 @@ class LogisticsPageState extends State<LogisticsPage> {
         child: Column(
           children: [
             Text(
-              "Tracking ID: #LOG-${request['id']}",
+              "Tracking ID: #LOG-${request.id}",
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
