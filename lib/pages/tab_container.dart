@@ -8,6 +8,7 @@ import 'package:eharvest_mobile/pages/bulk_pricing_page.dart';
 import 'package:eharvest_mobile/pages/demand_supply_forecast_page.dart';
 import 'package:eharvest_mobile/pages/market_insights_page.dart';
 import 'package:eharvest_mobile/pages/season_recommendations_page.dart';
+import 'package:eharvest_mobile/pages/supply_map_screen.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
@@ -211,6 +212,17 @@ class _TabContainerState extends State<TabContainer> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const MarketInsightsPage()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.map),
+              title: const Text('Supply Heatmap'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SupplyMapScreen()),
                 );
               },
             ),

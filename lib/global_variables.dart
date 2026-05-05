@@ -555,6 +555,48 @@ class Transaction {
   }
 }
 
+class HeatmapPoint {
+  final String city;
+  final double latitude;
+  final double longitude;
+  final double totalKg;
+  final int listingCount;
+  final double normalizedWeight;
+
+  HeatmapPoint({
+    required this.city,
+    required this.latitude,
+    required this.longitude,
+    required this.totalKg,
+    required this.listingCount,
+    required this.normalizedWeight,
+  });
+
+  factory HeatmapPoint.fromJson(Map<String, dynamic> json) {
+    final normalizedRaw =
+        json['normalizedWeight'] ?? json['normalized_weight'] ?? 0.0;
+    final normalized =
+        double.tryParse(normalizedRaw.toString())?.clamp(0.0, 1.0) ?? 0.0;
+
+    return HeatmapPoint(
+      city: (json['city'] ?? '').toString(),
+      latitude: double.tryParse((json['latitude'] ?? 0).toString()) ?? 0.0,
+      longitude: double.tryParse((json['longitude'] ?? 0).toString()) ?? 0.0,
+      totalKg:
+          double.tryParse(
+            (json['totalKg'] ?? json['total_kg'] ?? 0).toString(),
+          ) ??
+          0.0,
+      listingCount:
+          int.tryParse(
+            (json['listingCount'] ?? json['listing_count'] ?? 0).toString(),
+          ) ??
+          0,
+      normalizedWeight: normalized,
+    );
+  }
+}
+
 const primaryColour = 0xFF4CAF50;
 const primaryDarkColour = 0xFF2E7D32;
 const accentColour = 0xFF66BB6A;
