@@ -688,6 +688,14 @@ class SellPageState extends State<SellPage> {
         return;
       }
 
+      final farmerId = await AuthService.getUserId();
+      if (farmerId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User not found. Please log in again.')),
+        );
+        return;
+      }
+
       final produceData = {
         'name': _nameController.text,
         'category': _selectedCategory,
@@ -695,9 +703,12 @@ class SellPageState extends State<SellPage> {
         'qualityGrade': _selectedGrade,
         'quantity': double.parse(_quantityController.text),
         'price': double.parse(_priceController.text),
+        'cityTown': _aiMarketController.text.trim(),
+        'longitude': double.tryParse(_aiLongitudeController.text.trim()) ?? 0.0,
+        'latitude': double.tryParse(_aiLatitudeController.text.trim()) ?? 0.0,
         'availableFrom': _availableDate.toIso8601String().split('T').first,
         'harvestDate': _harvestDate.toIso8601String().split('T').first,
-        'farmer': await AuthService.getUserId(),
+        'farmer': {'id': farmerId},
         'imageUrls': [],
       };
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/services/notification_service.dart';
 
 class AuthResult {
   final bool success;
@@ -57,8 +58,11 @@ class AuthService {
     }
   }
 
-  /// Logs out the user by clearing SharedPreferences.
+  /// Logs out the user by clearing SharedPreferences and deactivating FCM token.
   static Future<void> logout() async {
+    // Delete FCM token and notify backend
+    await NotificationService.deleteToken();
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('logged_in', false);
     await prefs.remove('token');

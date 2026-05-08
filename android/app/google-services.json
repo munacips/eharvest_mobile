@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "842043851979",
+    "project_id": "eharvest-3f31c",
+    "storage_bucket": "eharvest-3f31c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:842043851979:android:42b6203fe72596b448c74e",
+        "android_client_info": {
+          "package_name": "com.example.eharvest_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyALpbjsm2UtO1d8pkR8zK9UU75W5CZLjRw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

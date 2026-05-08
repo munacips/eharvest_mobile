@@ -66,16 +66,21 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     });
 
     try {
-      final success = await OrderService.updateOrderStatus(order, status);
-      if (!mounted) {
-        return;
+      if (status == _acceptedStatus) {
+        await OrderService.acceptOrder(order.id);
+      } else if (status == _rejectedStatus) {
+        await OrderService.rejectOrder(order.id);
+      } else {
+        final success = await OrderService.updateOrderStatus(order, status);
+        if (!success) {
+          setState(() {
+            _error = 'Failed to update order status.';
+            _updatingOrderId = null;
+          });
+          return;
+        }
       }
-
-      if (!success) {
-        setState(() {
-          _error = 'Failed to update order status.';
-          _updatingOrderId = null;
-        });
+      if (!mounted) {
         return;
       }
 

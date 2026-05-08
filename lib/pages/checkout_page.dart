@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/services/order_service.dart';
+import 'package:eharvest_mobile/services/payment_service.dart';
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:http/http.dart' as http;
@@ -19,13 +21,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // Track quantities for each cart item
   late List<int> _quantities;
   bool _isSubmitting = false;
+  bool _walletLoading = true;
   String? _submitError;
+  Map<String, dynamic>? _profile;
+  String _currency = 'USD';
 
   @override
   void initState() {
     super.initState();
     _cart = List<Produce>.from(widget.cart, growable: true);
     _quantities = List<int>.filled(_cart.length, 1);
+    _loadWallet();
+  }
+
+  Future<void> _loadWallet() async {
+    try {
+      final profile = await PaymentService.fetchCurrentProfile();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _walletLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitError = e.toString();
+        _walletLoading = false;
+      });
+    }
   }
 
   int? _extractFarmerId(Produce product) {
@@ -43,6 +66,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
     });
   }
 
+  double get _cartTotal {
+    double total = 0;
+    for (var i = 0; i < _cart.length; i++) {
+      total += _cart[i].price * _quantities[i];
+    }
+    return total;
+  }
+
+  double get _availableBalance {
+    final profile = _profile;
+    if (profile == null) return 0;
+    return PaymentService.balanceForCurrency(profile, _currency);
+  }
+
   Future<void> _placeOrder() async {
     setState(() {
       _isSubmitting = true;
@@ -54,6 +91,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
       if (token == null || buyerId == null) {
         setState(() {
           _submitError = 'Authentication token or user not found.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
+      final availableBalance = _availableBalance;
+      if (_cartTotal > availableBalance) {
+        setState(() {
+          _submitError =
+              'Insufficient $_currency balance. Available: ${availableBalance.toStringAsFixed(2)}, order total: ${_cartTotal.toStringAsFixed(2)}.';
           _isSubmitting = false;
         });
         return;
@@ -96,34 +143,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
           });
         }
         final orderPayload = {
-          'totalAmount': totalAmount,
-          'status': 'PENDING',
-          'escrowReleased': false,
           'buyerId': buyerId,
-          'farmerId': farmerId
+          'farmerId': farmerId,
+          'totalAmount': totalAmount,
+          'escrowAmount': totalAmount,
+          'currency': _currency,
         };
 
         if (orderItems.isEmpty) {
           continue;
         }
 
-        // Create the order first
-        final response = await http.post(
-          Uri.parse('${api}orders'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: json.encode(orderPayload),
-        );
-        if (response.statusCode != 200 && response.statusCode != 201) {
-          throw Exception('Order failed: ${response.statusCode}');
-        }
-
-        // Parse the created order id
-        final orderData = json.decode(response.body);
-        final orderId = orderData['id'];
-        if (orderId == null) {
+        final order = await OrderService.createOrder(orderPayload);
+        final orderId = order.id;
+        if (orderId <= 0) {
           throw Exception('Order ID not returned from API.');
         }
 
@@ -158,8 +191,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
             throw Exception('Order item failed: ${itemResponse.statusCode}');
           }
         }
+
+        await OrderService.holdEscrow(orderId);
       }
 
+      await _loadWallet();
       setState(() {
         _isSubmitting = false;
       });
@@ -185,6 +221,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ? const Center(child: Text('Your cart is empty'))
           : Column(
               children: [
+                _walletSummary(),
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
@@ -192,9 +229,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     separatorBuilder: (_, __) => const Divider(),
                     itemBuilder: (context, index) {
                       final item = _cart[index];
+                      final details = [
+                        item.category,
+                        if (item.qualityGrade.isNotEmpty) item.qualityGrade,
+                        if (item.cityTown.isNotEmpty) item.cityTown,
+                      ].join(' - ');
                       return ListTile(
                         title: Text(item.name),
-                        subtitle: Text(item.category),
+                        subtitle: Text(details),
                         trailing: SizedBox(
                           width: 170,
                           child: Row(
@@ -277,10 +319,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isSubmitting ? null : _placeOrder,
+                          onPressed: _isSubmitting || _walletLoading
+                              ? null
+                              : _placeOrder,
                           child: _isSubmitting
                               ? const CircularProgressIndicator()
-                              : const Text('Place Order'),
+                              : const Text('Place Order and Hold Escrow'),
                         ),
                       ),
                     ],
@@ -288,6 +332,51 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _walletSummary() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      color: Colors.green.shade50,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.account_balance_wallet_outlined),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Wallet and Escrow',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DropdownButton<String>(
+                value: _currency,
+                items: const [
+                  DropdownMenuItem(value: 'USD', child: Text('USD')),
+                  DropdownMenuItem(value: 'ZIG', child: Text('ZIG')),
+                ],
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) {
+                        if (value != null) setState(() => _currency = value);
+                      },
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _walletLoading
+                ? 'Loading wallet balance...'
+                : 'Available: $_currency ${_availableBalance.toStringAsFixed(2)}',
+          ),
+          Text('Order amount: $_currency ${_cartTotal.toStringAsFixed(2)}'),
+          const Text('Escrow: held after order creation'),
+        ],
+      ),
     );
   }
 }

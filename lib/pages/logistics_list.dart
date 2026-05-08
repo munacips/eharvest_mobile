@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/services/logistics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -263,34 +264,24 @@ class _LogisticsListState extends State<LogisticsList> {
         return;
       }
 
-      final response = await http.post(
-        Uri.parse('${api}logistics/$requestId/accept?providerId=$providerId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+      final updated = await LogisticsService.acceptRequest(
+        requestId,
+        providerId,
       );
-
-      if (response.statusCode == 200) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Request #$requestId accepted successfully.')),
+      if (!mounted) return;
+      final escrowText = updated.escrowHeld
+          ? ' Buyer funds are now held in escrow.'
+          : '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Request #$requestId accepted successfully.$escrowText'),
+        ),
+      );
+      setState(() {
+        _requests.removeWhere(
+          (item) => _readInt(item, <String>['id'], fallback: -1) == requestId,
         );
-        setState(() {
-          _requests.removeWhere(
-            (item) => _readInt(item, <String>['id'], fallback: -1) == requestId,
-          );
-        });
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to accept request #$requestId (${response.statusCode}).',
-            ),
-          ),
-        );
-      }
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

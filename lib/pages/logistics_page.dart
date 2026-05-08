@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -321,7 +322,19 @@ class LogisticsPageState extends State<LogisticsPage> {
                   ],
                 ),
                 ElevatedButton(
-                  onPressed: () => _showTrackingDetails(request),
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => LogisticsRequestPage(
+                          logisticsRequest: request,
+                          onUpdate: fetchLogisticsRequests,
+                          allowEditing: _roleKey == 'buyer',
+                        ),
+                      ),
+                    );
+                    fetchLogisticsRequests();
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(primaryColour).withOpacity(0.1),
                     foregroundColor: Color(primaryColour),
@@ -330,7 +343,7 @@ class LogisticsPageState extends State<LogisticsPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text("Track Order"),
+                  child: const Text("View Delivery"),
                 ),
               ],
             ),

@@ -8,6 +8,9 @@ import 'package:eharvest_mobile/pages/logistics_list.dart';
 import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:eharvest_mobile/pages/my_orders_page.dart';
 import 'package:eharvest_mobile/services/order_service.dart';
+import 'package:eharvest_mobile/services/payment_redirect_stub.dart'
+    if (dart.library.html) 'package:eharvest_mobile/services/payment_redirect_web.dart';
+import 'package:eharvest_mobile/services/payment_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -37,6 +40,16 @@ class MyAccountPageState extends State<MyAccountPage> {
   String? _aiTrustError;
   bool _driverDeliveriesExpanded = false;
   String _resolvedRoleKey = '';
+  final TextEditingController _depositAmountController =
+      TextEditingController();
+  final TextEditingController _withdrawAmountController =
+      TextEditingController();
+  String _depositCurrency = 'USD';
+  String _withdrawCurrency = 'USD';
+  bool _depositLoading = false;
+  bool _withdrawLoading = false;
+  String? _paymentMessage;
+  String? _paymentError;
 
   String _normalizeRoleKey(String rawRole) {
     final normalized = rawRole.trim().toLowerCase().replaceAll(
@@ -65,6 +78,13 @@ class MyAccountPageState extends State<MyAccountPage> {
   void initState() {
     super.initState();
     fetchUserData();
+  }
+
+  @override
+  void dispose() {
+    _depositAmountController.dispose();
+    _withdrawAmountController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchUserData() async {
@@ -262,6 +282,125 @@ class MyAccountPageState extends State<MyAccountPage> {
         });
       }
     }
+  }
+
+  Future<void> _submitDeposit() async {
+    final amount = double.tryParse(_depositAmountController.text.trim());
+    if (amount == null || amount <= 0) {
+      setState(() => _paymentError = 'Enter a deposit amount greater than 0.');
+      return;
+    }
+
+    setState(() {
+      _depositLoading = true;
+      _paymentError = null;
+      _paymentMessage = null;
+    });
+
+    try {
+      final payload = _paymentPayload(
+        amount: amount,
+        currency: _depositCurrency,
+        type: 'DEPOSIT',
+      );
+      final result = await PaymentService.initiatePayment(payload);
+      final redirectUrl = result['redirectUrl']?.toString();
+      if (redirectUrl != null && redirectUrl.isNotEmpty) {
+        redirectToPayment(redirectUrl);
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _paymentMessage =
+            'Deposit created with status ${result['status'] ?? 'PENDING'}.';
+      });
+      await fetchUserData();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _paymentError = e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _depositLoading = false);
+      }
+    }
+  }
+
+  Future<void> _submitWithdrawal() async {
+    final amount = double.tryParse(_withdrawAmountController.text.trim());
+    if (amount == null || amount <= 0) {
+      setState(() => _paymentError = 'Enter a withdrawal amount greater than 0.');
+      return;
+    }
+
+    final balance = _balanceForCurrency(_withdrawCurrency);
+    if (amount > balance) {
+      setState(
+        () => _paymentError =
+            'Withdrawal amount exceeds your $_withdrawCurrency balance.',
+      );
+      return;
+    }
+
+    setState(() {
+      _withdrawLoading = true;
+      _paymentError = null;
+      _paymentMessage = null;
+    });
+
+    try {
+      final payload = _paymentPayload(
+        amount: amount,
+        currency: _withdrawCurrency,
+        type: 'WITHDRAWAL',
+      );
+      final result = await PaymentService.initiatePayment(payload);
+      if (!mounted) return;
+      setState(() {
+        _paymentMessage =
+            'Withdrawal submitted with status ${result['status'] ?? 'PENDING'}.';
+      });
+      await fetchUserData();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _paymentError = e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _withdrawLoading = false);
+      }
+    }
+  }
+
+  Map<String, dynamic> _paymentPayload({
+    required double amount,
+    required String currency,
+    required String type,
+  }) {
+    final userId = _currentUserId;
+    if (userId == null) {
+      throw Exception('Authentication error. Please log in again.');
+    }
+    return {
+      'userId': userId,
+      'amount': amount,
+      'currency': currency,
+      'type': type,
+      'email': _getField('email')?.toString() ?? '',
+      'phoneNumber': _getField('phoneNumber')?.toString() ?? '',
+    };
+  }
+
+  int? get _currentUserId {
+    if (farmer != null) return farmer!.id;
+    if (buyer != null) return buyer!.id;
+    if (logisticsProvider != null) return logisticsProvider!.id;
+    return user?.id;
+  }
+
+  double _balanceForCurrency(String currency) {
+    final value = currency == 'ZIG'
+        ? _getField('zigBalance')
+        : _getField('usdBalance');
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Future<void> _fetchDriverLogisticsData(String token, int providerId) async {
@@ -499,6 +638,11 @@ class MyAccountPageState extends State<MyAccountPage> {
       ]),
       status: _readString(request, <String>['status']),
       cost: _readDouble(request, <String>['cost']),
+      escrowHeld: _readBool(request, <String>['escrowHeld', 'escrow_held']),
+      escrowReleased: _readBool(request, <String>[
+        'escrowReleased',
+        'escrow_released',
+      ]),
       assignedProvider: assignedProviderJson == null
           ? null
           : LogisticsProvider(
@@ -529,6 +673,14 @@ class MyAccountPageState extends State<MyAccountPage> {
               trustScore: _readInt(assignedProviderJson, <String>[
                 'trustScore',
                 'trust_score',
+              ]),
+              usdBalance: _readDouble(assignedProviderJson, <String>[
+                'usdBalance',
+                'usd_balance',
+              ]),
+              zigBalance: _readDouble(assignedProviderJson, <String>[
+                'zigBalance',
+                'zig_balance',
               ]),
               licenseNumber: _readString(assignedProviderJson, <String>[
                 'licenseNumber',
@@ -667,6 +819,8 @@ class MyAccountPageState extends State<MyAccountPage> {
                           _buildBalancesCard(),
                           const SizedBox(height: 20),
                         ],
+                        _buildPaymentsCard(),
+                        const SizedBox(height: 20),
                         if (personalInfoTiles.isNotEmpty) ...[
                           _buildInfoSection(
                             "Personal Information",
@@ -1161,6 +1315,114 @@ class MyAccountPageState extends State<MyAccountPage> {
     );
   }
 
+  Widget _buildPaymentsCard() {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.account_balance_wallet, color: Color(primaryColour)),
+                const SizedBox(width: 8),
+                const Text(
+                  'Wallet Payments',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _paymentFormRow(
+              controller: _depositAmountController,
+              currency: _depositCurrency,
+              onCurrencyChanged: (value) {
+                if (value != null) setState(() => _depositCurrency = value);
+              },
+              buttonText: 'Deposit',
+              loading: _depositLoading,
+              onPressed: _submitDeposit,
+            ),
+            const SizedBox(height: 12),
+            _paymentFormRow(
+              controller: _withdrawAmountController,
+              currency: _withdrawCurrency,
+              onCurrencyChanged: (value) {
+                if (value != null) setState(() => _withdrawCurrency = value);
+              },
+              buttonText: 'Withdraw',
+              loading: _withdrawLoading,
+              onPressed: _submitWithdrawal,
+            ),
+            if (_paymentError != null) ...[
+              const SizedBox(height: 10),
+              Text(_paymentError!, style: const TextStyle(color: Colors.red)),
+            ],
+            if (_paymentMessage != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _paymentMessage!,
+                style: TextStyle(color: Color(primaryDarkColour)),
+              ),
+            ],
+            const SizedBox(height: 8),
+            const Text(
+              'Deposits update after Paynow confirmation. Withdrawals are submitted as pending payouts.',
+              style: TextStyle(color: Colors.black54, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentFormRow({
+    required TextEditingController controller,
+    required String currency,
+    required ValueChanged<String?> onCurrencyChanged,
+    required String buttonText,
+    required bool loading,
+    required VoidCallback onPressed,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: '$buttonText amount',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        DropdownButton<String>(
+          value: currency,
+          items: const [
+            DropdownMenuItem(value: 'USD', child: Text('USD')),
+            DropdownMenuItem(value: 'ZIG', child: Text('ZIG')),
+          ],
+          onChanged: loading ? null : onCurrencyChanged,
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          onPressed: loading ? null : onPressed,
+          child: loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(buttonText),
+        ),
+      ],
+    );
+  }
+
   Widget _buildProfileHeader() {
     final name = _getField('fullName');
     final role = _normalizedRole;
@@ -1463,9 +1725,9 @@ class MyAccountPageState extends State<MyAccountPage> {
         case 'trustScore':
           return farmer!.trustScore.toString();
         case 'usdBalance':
-          return null; // Not available in Farmer model
+          return farmer!.usdBalance.toStringAsFixed(2);
         case 'zigBalance':
-          return null; // Not available in Farmer model
+          return farmer!.zigBalance.toStringAsFixed(2);
         case 'farmName':
           return farmer!.farmName;
         case 'farmLocation':
@@ -1508,9 +1770,9 @@ class MyAccountPageState extends State<MyAccountPage> {
         case 'trustScore':
           return buyer!.trustScore.toString();
         case 'usdBalance':
-          return null;
+          return buyer!.usdBalance.toStringAsFixed(2);
         case 'zigBalance':
-          return null;
+          return buyer!.zigBalance.toStringAsFixed(2);
         case 'companyName':
           return buyer!.companyName;
         case 'successfulBuys':
@@ -1553,9 +1815,9 @@ class MyAccountPageState extends State<MyAccountPage> {
         case 'trustScore':
           return logisticsProvider!.trustScore.toString();
         case 'usdBalance':
-          return null;
+          return logisticsProvider!.usdBalance.toStringAsFixed(2);
         case 'zigBalance':
-          return null;
+          return logisticsProvider!.zigBalance.toStringAsFixed(2);
         case 'companyName':
           return null;
         case 'farmName':

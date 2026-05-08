@@ -3,6 +3,7 @@ import 'package:eharvest_mobile/global_variables.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/services/logistics_service.dart';
 
 class LogisticsRequestPage extends StatefulWidget {
   final LogisticsRequest logisticsRequest;
@@ -25,6 +26,9 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
   late TextEditingController _deliveryLocationController;
   bool _isEditing = false;
   bool _isSaving = false;
+  bool _actionLoading = false;
+  int? _userId;
+  String _roleKey = '';
 
   @override
   void initState() {
@@ -33,6 +37,7 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
     _deliveryLocationController = TextEditingController(
       text: _logisticsRequest.deliveryLocation,
     );
+    _loadCurrentUser();
   }
 
   @override
@@ -108,6 +113,79 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
         });
       }
     }
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final userId = await AuthService.getUserId();
+    final role = await AuthService.getRole();
+    if (!mounted) return;
+    setState(() {
+      _userId = userId;
+      _roleKey = (role ?? '')
+          .trim()
+          .toLowerCase()
+          .replaceAll(RegExp(r'[\s-]+'), '_');
+    });
+  }
+
+  Future<void> _refreshRequest() async {
+    final updated = await LogisticsService.getRequest(_logisticsRequest.id);
+    if (!mounted) return;
+    setState(() {
+      _logisticsRequest = updated;
+      _deliveryLocationController.text = updated.deliveryLocation;
+    });
+    widget.onUpdate?.call();
+  }
+
+  Future<void> _runAction(
+    String successMessage,
+    Future<LogisticsRequest> Function() action,
+  ) async {
+    setState(() => _actionLoading = true);
+    try {
+      final updated = await action();
+      if (!mounted) return;
+      setState(() {
+        _logisticsRequest = updated;
+        _deliveryLocationController.text = updated.deliveryLocation;
+      });
+      widget.onUpdate?.call();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  String _normalizeStatus(String raw) {
+    return raw.trim().toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
+  }
+
+  bool get _isBuyer {
+    return _roleKey.contains('buyer') &&
+        _logisticsRequest.order?.buyer?.id == _userId;
+  }
+
+  bool get _isProvider {
+    return (_roleKey.contains('logistics') || _roleKey.contains('driver')) &&
+        _logisticsRequest.assignedProvider?.id == _userId;
+  }
+
+  bool get _canMarkInTransit {
+    final status = _normalizeStatus(_logisticsRequest.status);
+    return _isProvider && (status == 'assigned' || status == 'accepted');
+  }
+
+  bool get _canConfirmDelivered {
+    final status = _normalizeStatus(_logisticsRequest.status);
+    return _isBuyer && status == 'in_transit';
   }
 
   @override
@@ -239,6 +317,16 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
               label: 'Status',
               value: _logisticsRequest.status,
             ),
+            const SizedBox(height: 12),
+            _buildDetailCard(
+              icon: Icons.lock_outline,
+              label: 'Escrow',
+              value: _logisticsRequest.escrowReleased
+                  ? 'Released to driver'
+                  : (_logisticsRequest.escrowHeld
+                        ? 'Held from buyer wallet'
+                        : 'Not held yet'),
+            ),
             if (_logisticsRequest.assignedProvider != null)
               Column(
                 children: [
@@ -251,6 +339,10 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
                 ],
               ),
             const SizedBox(height: 30),
+            if (_canMarkInTransit || _canConfirmDelivered)
+              _buildEscrowActions(),
+            if (_canMarkInTransit || _canConfirmDelivered)
+              const SizedBox(height: 16),
             if (widget.allowEditing && _isEditing)
               SizedBox(
                 width: double.infinity,
@@ -287,6 +379,69 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildEscrowActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_canMarkInTransit)
+          ElevatedButton.icon(
+            onPressed: _actionLoading
+                ? null
+                : () => _runAction(
+                    'Delivery marked in transit.',
+                    () => LogisticsService.markInTransit(_logisticsRequest.id),
+                  ),
+            icon: _actionLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.local_shipping_outlined),
+            label: const Text('Start Delivery'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(primaryColour),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        if (_canConfirmDelivered)
+          ElevatedButton.icon(
+            onPressed: _actionLoading
+                ? null
+                : () => _runAction(
+                    'Delivery confirmed. Logistics escrow released to the driver.',
+                    () => LogisticsService.markDelivered(_logisticsRequest.id),
+                  ),
+            icon: _actionLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.verified_outlined),
+            label: const Text('Confirm Received'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(primaryColour),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        TextButton.icon(
+          onPressed: _actionLoading ? null : _refreshRequest,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Refresh status'),
+        ),
+      ],
     );
   }
 

@@ -82,6 +82,8 @@ class Buyer {
   final bool active;
   final bool verified;
   final int trustScore;
+  final double usdBalance;
+  final double zigBalance;
 
   // Buyer fields
   final String companyName;
@@ -102,6 +104,8 @@ class Buyer {
     required this.active,
     required this.verified,
     required this.trustScore,
+    required this.usdBalance,
+    required this.zigBalance,
     required this.companyName,
     required this.successfulBuys,
     required this.unsuccessfulBuys,
@@ -123,6 +127,16 @@ class Buyer {
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
       trustScore: json['trust_score'] ?? 0,
+      usdBalance:
+          double.tryParse(
+            (json['usd_balance'] ?? json['usdBalance']).toString(),
+          ) ??
+          0.0,
+      zigBalance:
+          double.tryParse(
+            (json['zig_balance'] ?? json['zigBalance']).toString(),
+          ) ??
+          0.0,
 
       // Buyer fields
       companyName: json['company_name'] ?? '',
@@ -152,6 +166,8 @@ class Farmer {
   final bool active;
   final bool verified;
   final int trustScore;
+  final double usdBalance;
+  final double zigBalance;
 
   // Farmer fields
   final String farmName;
@@ -173,6 +189,8 @@ class Farmer {
     required this.active,
     required this.verified,
     required this.trustScore,
+    required this.usdBalance,
+    required this.zigBalance,
     required this.farmName,
     required this.farmLocation,
     required this.successfulSales,
@@ -195,6 +213,16 @@ class Farmer {
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
       trustScore: json['trust_score'] ?? 0,
+      usdBalance:
+          double.tryParse(
+            (json['usd_balance'] ?? json['usdBalance']).toString(),
+          ) ??
+          0.0,
+      zigBalance:
+          double.tryParse(
+            (json['zig_balance'] ?? json['zigBalance']).toString(),
+          ) ??
+          0.0,
 
       // Farmer fields
       farmName: json['farm_name'] ?? '',
@@ -225,6 +253,8 @@ class LogisticsProvider {
   final bool active;
   final bool verified;
   final int trustScore;
+  final double usdBalance;
+  final double zigBalance;
 
   // LogisticsProvider fields
   final String licenseNumber;
@@ -244,6 +274,8 @@ class LogisticsProvider {
     required this.active,
     required this.verified,
     required this.trustScore,
+    required this.usdBalance,
+    required this.zigBalance,
     required this.licenseNumber,
     required this.defensiveId,
   });
@@ -264,6 +296,16 @@ class LogisticsProvider {
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
       trustScore: json['trust_score'] ?? json['trustScore'] ?? 0,
+      usdBalance:
+          double.tryParse(
+            (json['usd_balance'] ?? json['usdBalance']).toString(),
+          ) ??
+          0.0,
+      zigBalance:
+          double.tryParse(
+            (json['zig_balance'] ?? json['zigBalance']).toString(),
+          ) ??
+          0.0,
 
       // LogisticsProvider fields
       licenseNumber: json['license_number'] ?? json['licenseNumber'] ?? '',
@@ -315,10 +357,14 @@ class Produce {
   final String qualityGrade;
   final double quantity;
   final double price;
+  final String cityTown;
+  final double longitude;
+  final double latitude;
   final DateTime availableFrom;
   final DateTime harvestDate;
   final int? farmerId;
   final Farmer? farmer;
+  final List<String> imageUrls;
 
   Produce({
     required this.id,
@@ -328,10 +374,14 @@ class Produce {
     required this.qualityGrade,
     required this.quantity,
     required this.price,
+    required this.cityTown,
+    required this.longitude,
+    required this.latitude,
     required this.availableFrom,
     required this.harvestDate,
     this.farmerId,
     this.farmer,
+    this.imageUrls = const [],
   });
 
   factory Produce.fromJson(Map<String, dynamic> json) {
@@ -348,16 +398,54 @@ class Produce {
       name: json['name'] ?? '',
       category: json['category'] ?? '',
       description: json['description'] ?? '',
-      qualityGrade: json['quality_grade'] ?? '',
+      qualityGrade: json['qualityGrade'] ?? json['quality_grade'] ?? '',
       quantity: double.tryParse(json['quantity']?.toString() ?? '0') ?? 0.0,
       price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
+      cityTown: json['cityTown'] ?? json['city_town'] ?? '',
+      longitude: double.tryParse(json['longitude']?.toString() ?? '0') ?? 0.0,
+      latitude: double.tryParse(json['latitude']?.toString() ?? '0') ?? 0.0,
       availableFrom:
-          DateTime.tryParse(json['available_from'] ?? '') ?? DateTime.now(),
+          DateTime.tryParse(
+            (json['availableFrom'] ?? json['available_from'] ?? '').toString(),
+          ) ??
+          DateTime.now(),
       harvestDate:
-          DateTime.tryParse(json['harvest_date'] ?? '') ?? DateTime.now(),
+          DateTime.tryParse(
+            (json['harvestDate'] ?? json['harvest_date'] ?? '').toString(),
+          ) ??
+          DateTime.now(),
       farmerId: int.tryParse(resolvedFarmerId?.toString() ?? ''),
-      farmer: json['farmer'] != null ? Farmer.fromJson(json['farmer']) : null,
+      farmer: nestedFarmerJson is Map<String, dynamic>
+          ? Farmer.fromJson(nestedFarmerJson)
+          : null,
+      imageUrls: (json['imageUrls'] ?? json['image_urls']) is List
+          ? List<String>.from(
+              ((json['imageUrls'] ?? json['image_urls']) as List).map(
+                (url) => url.toString(),
+              ),
+            )
+          : const [],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'category': category,
+      'description': description,
+      'qualityGrade': qualityGrade,
+      'quantity': quantity,
+      'price': price,
+      'cityTown': cityTown,
+      'longitude': longitude,
+      'latitude': latitude,
+      'availableFrom': availableFrom.toIso8601String().split('T').first,
+      'harvestDate': harvestDate.toIso8601String().split('T').first,
+      if (farmer != null) 'farmer': {'id': farmer!.id},
+      if (farmer == null && farmerId != null) 'farmer': {'id': farmerId},
+      'imageUrls': imageUrls,
+    };
   }
 }
 
@@ -367,6 +455,8 @@ class Order {
   final int id;
   final DateTime orderDate;
   final double totalAmount;
+  final double escrowAmount;
+  final String currency;
   final String status;
   final Buyer? buyer;
   final Farmer? farmer;
@@ -377,6 +467,8 @@ class Order {
     required this.id,
     required this.orderDate,
     required this.totalAmount,
+    required this.escrowAmount,
+    required this.currency,
     required this.status,
     this.buyer,
     this.farmer,
@@ -391,6 +483,8 @@ class Order {
         json['totalAmount'] ??
         json['total'] ??
         json['amount'];
+    final rawEscrowAmount =
+        json['escrow_amount'] ?? json['escrowAmount'] ?? rawTotalAmount;
 
     return Order(
       id: json['id'] ?? 0,
@@ -399,13 +493,17 @@ class Order {
       totalAmount: rawTotalAmount is num
           ? rawTotalAmount.toDouble()
           : (double.tryParse(rawTotalAmount?.toString() ?? '0') ?? 0.0),
+      escrowAmount: rawEscrowAmount is num
+          ? rawEscrowAmount.toDouble()
+          : (double.tryParse(rawEscrowAmount?.toString() ?? '0') ?? 0.0),
+      currency: (json['currency'] ?? 'USD').toString(),
       status: json['status'] ?? '',
       buyer: json['buyer'] != null ? Buyer.fromJson(json['buyer']) : null,
       farmer: json['farmer'] != null ? Farmer.fromJson(json['farmer']) : null,
       logisticsRequest: json['logistics_request'] != null
           ? LogisticsRequest.fromJson(json['logistics_request'])
           : null,
-      escrowReleased: json['escrow_released'] ?? false,
+      escrowReleased: json['escrow_released'] ?? json['escrowReleased'] ?? false,
     );
   }
 }
@@ -448,6 +546,8 @@ class LogisticsRequest {
   final String deliveryLocation;
   final String status;
   final double cost;
+  final bool escrowHeld;
+  final bool escrowReleased;
   final LogisticsProvider? assignedProvider;
   final Order? order;
 
@@ -457,6 +557,8 @@ class LogisticsRequest {
     required this.deliveryLocation,
     required this.status,
     required this.cost,
+    required this.escrowHeld,
+    required this.escrowReleased,
     this.assignedProvider,
     this.order,
   });
@@ -469,6 +571,9 @@ class LogisticsRequest {
           json['delivery_location'] ?? json['deliveryLocation'] ?? '',
       status: json['status'] ?? '',
       cost: double.tryParse(json['cost']?.toString() ?? '0') ?? 0.0,
+      escrowHeld: json['escrowHeld'] ?? json['escrow_held'] ?? false,
+      escrowReleased:
+          json['escrowReleased'] ?? json['escrow_released'] ?? false,
       assignedProvider:
           (json['assigned_provider'] ?? json['assignedProvider']) != null
           ? LogisticsProvider.fromJson(

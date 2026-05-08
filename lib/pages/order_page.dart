@@ -4,6 +4,8 @@ import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/services/order_service.dart';
+import 'package:eharvest_mobile/services/payment_service.dart';
 
 class OrderPage extends StatefulWidget {
   final int orderId;
@@ -18,8 +20,12 @@ class _OrderPageState extends State<OrderPage> {
   Order? _order;
   List<OrderItem> _orderItems = [];
   LogisticsRequest? _logisticsRequest;
+  Map<String, dynamic>? _profile;
+  String? _role;
+  int? _userId;
   bool _loading = true;
   String? _error;
+  bool _actionLoading = false;
 
   @override
   void initState() {
@@ -36,6 +42,8 @@ class _OrderPageState extends State<OrderPage> {
     try {
       // Get token
       final token = await AuthService.getToken();
+      _role = await AuthService.getRole();
+      _userId = await AuthService.getUserId();
       if (token == null) {
         setState(() {
           _error = 'Authentication error. Please log in again.';
@@ -93,6 +101,11 @@ class _OrderPageState extends State<OrderPage> {
 
       // Fetch logistics request (if any)
       _logisticsRequest = await _fetchLogisticsRequest(token);
+      try {
+        _profile = await PaymentService.fetchCurrentProfile();
+      } catch (_) {
+        _profile = null;
+      }
 
       setState(() {
         _loading = false;
@@ -266,6 +279,62 @@ class _OrderPageState extends State<OrderPage> {
     }
   }
 
+  Future<void> _runOrderAction(
+    String successMessage,
+    Future<Map<String, dynamic>> Function() action,
+  ) async {
+    setState(() {
+      _actionLoading = true;
+      _error = null;
+    });
+    try {
+      await action();
+      await _fetchOrderDetails();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) {
+        setState(() => _actionLoading = false);
+      }
+    }
+  }
+
+  bool get _isBuyer {
+    final role = (_role ?? '').toLowerCase();
+    return role.contains('buyer') && _order?.buyer?.id == _userId;
+  }
+
+  bool get _isFarmer {
+    final role = (_role ?? '').toLowerCase();
+    return role.contains('farmer') && _order?.farmer?.id == _userId;
+  }
+
+  double get _availableBalance {
+    final profile = _profile;
+    final order = _order;
+    if (profile == null || order == null) return 0;
+    return PaymentService.balanceForCurrency(profile, order.currency);
+  }
+
+  bool _isStatus(String value) {
+    return (_order?.status ?? '').toLowerCase() == value.toLowerCase();
+  }
+
+  bool get _canHoldEscrow {
+    final order = _order;
+    if (order == null) return false;
+    return _isBuyer &&
+        !order.escrowReleased &&
+        _availableBalance >= order.escrowAmount;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -408,6 +477,11 @@ class _OrderPageState extends State<OrderPage> {
               ),
             ),
             const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: _escrowCard(),
+            ),
+            const SizedBox(height: 24),
             // Order Items Section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -543,8 +617,137 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  Widget _escrowCard() {
+    final order = _order!;
+    final escrowText = order.escrowReleased
+        ? 'Released to farmer'
+        : (_isStatus('REJECTED')
+              ? 'Refunded or released by backend'
+              : 'Held or pending hold');
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.lock_outline, color: Color(primaryColour)),
+                const SizedBox(width: 8),
+                const Text(
+                  'Wallet and Escrow',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Available balance: ${order.currency} ${_availableBalance.toStringAsFixed(2)}',
+            ),
+            Text(
+              'Order amount: ${order.currency} ${order.totalAmount.toStringAsFixed(2)}',
+            ),
+            Text(
+              'Escrow amount: ${order.currency} ${order.escrowAmount.toStringAsFixed(2)}',
+            ),
+            Text('Escrow status: $escrowText'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (_isBuyer && !order.escrowReleased && !_isStatus('REJECTED'))
+                  ElevatedButton.icon(
+                    onPressed: _actionLoading || !_canHoldEscrow
+                        ? null
+                        : () => _runOrderAction(
+                            'Escrow held for this order.',
+                            () => OrderService.holdEscrow(order.id),
+                          ),
+                    icon: _actionLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.lock),
+                    label: const Text('Hold Escrow'),
+                  ),
+                if (_isFarmer && (_isStatus('PENDING') || _isStatus('NEW')))
+                  OutlinedButton.icon(
+                    onPressed: _actionLoading
+                        ? null
+                        : () => _runOrderAction(
+                            'Order accepted.',
+                            () => OrderService.acceptOrder(order.id),
+                          ),
+                    icon: const Icon(Icons.check),
+                    label: const Text('Accept'),
+                  ),
+                if (_isFarmer && (_isStatus('PENDING') || _isStatus('NEW')))
+                  OutlinedButton.icon(
+                    onPressed: _actionLoading
+                        ? null
+                        : () => _runOrderAction(
+                            'Order rejected.',
+                            () => OrderService.rejectOrder(order.id),
+                          ),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Reject'),
+                  ),
+                if (_isFarmer && _isStatus('ACCEPTED'))
+                  OutlinedButton.icon(
+                    onPressed: _actionLoading
+                        ? null
+                        : () => _runOrderAction(
+                            'Delivery marked as started.',
+                            () => OrderService.confirmDeliveryStarted(order.id),
+                          ),
+                    icon: const Icon(Icons.local_shipping_outlined),
+                    label: const Text('Delivery Started'),
+                  ),
+                if (_isBuyer &&
+                    (_isStatus('DELIVERY_STARTED') ||
+                        _isStatus('IN_TRANSIT') ||
+                        _isStatus('ACCEPTED')))
+                  ElevatedButton.icon(
+                    onPressed: _actionLoading
+                        ? null
+                        : () => _runOrderAction(
+                            'Delivery confirmed. Escrow released to the farmer.',
+                            () => OrderService.confirmDelivery(order.id),
+                          ),
+                    icon: const Icon(Icons.verified_outlined),
+                    label: const Text('Confirm Delivery'),
+                  ),
+              ],
+            ),
+            if (_isBuyer && !_canHoldEscrow && !order.escrowReleased)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _availableBalance < order.escrowAmount
+                      ? 'Add funds before holding escrow for this order.'
+                      : 'Escrow is not available for this order state.',
+                  style: const TextStyle(color: Colors.black54, fontSize: 12),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _orderItemCard(OrderItem item) {
     final produce = item.produce;
+    final produceImageUrl =
+        produce?.imageUrls.isNotEmpty == true ? produce!.imageUrls.first : null;
+    final produceDetails = [
+      if (produce?.category.isNotEmpty ?? false) produce!.category,
+      if (produce?.qualityGrade.isNotEmpty ?? false) produce!.qualityGrade,
+      if (produce?.cityTown.isNotEmpty ?? false) produce!.cityTown,
+    ].join(' - ');
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -554,21 +757,19 @@ class _OrderPageState extends State<OrderPage> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Produce image placeholder
-            Container(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(
-                  (produce?.name.isNotEmpty ?? false)
-                      ? produce!.name[0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(fontSize: 28, color: Colors.black54),
-                ),
+                child: produceImageUrl != null
+                    ? Image.network(
+                        produceImageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _produceImageFallback(produce),
+                      )
+                    : _produceImageFallback(produce),
               ),
             ),
             const SizedBox(width: 16),
@@ -584,6 +785,28 @@ class _OrderPageState extends State<OrderPage> {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  if (produceDetails.isNotEmpty) ...[
+                    Text(
+                      produceDetails,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  if (produce?.description.isNotEmpty ?? false) ...[
+                    Text(
+                      produce!.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
                   Text(
                     'Quantity: ${item.quantity} Kg',
                     style: const TextStyle(fontSize: 13, color: Colors.black87),
@@ -597,6 +820,20 @@ class _OrderPageState extends State<OrderPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _produceImageFallback(Produce? produce) {
+    return Container(
+      color: Colors.grey.shade100,
+      child: Center(
+        child: Text(
+          (produce?.name.isNotEmpty ?? false)
+              ? produce!.name[0].toUpperCase()
+              : '?',
+          style: const TextStyle(fontSize: 28, color: Colors.black54),
         ),
       ),
     );

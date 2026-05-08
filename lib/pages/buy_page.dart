@@ -277,7 +277,7 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.75,
+                childAspectRatio: 0.62,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -318,6 +318,10 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
         : 'Unknown';
     final trustScore = farmer?.trustScore;
     final canOpenFarmerProfile = farmer?.id != null && farmer!.id > 0;
+    final location = product.cityTown.isNotEmpty
+        ? product.cityTown
+        : farmer?.farmLocation ?? '';
+    final harvestDate = product.harvestDate.toIso8601String().split('T').first;
 
     return Card(
       elevation: 2,
@@ -325,117 +329,222 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Product Image Placeholder
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(15),
-                ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
               ),
-              child: Center(
-                child: Text(
-                  // Produce model does not include an `image` field.
-                  // Display first letter of the product name as a placeholder.
-                  (product.name.isNotEmpty ? product.name[0] : '?')
-                      .toUpperCase(),
-                  style: const TextStyle(fontSize: 50),
-                ),
+              child: SizedBox(
+                width: double.infinity,
+                child: product.imageUrls.isNotEmpty
+                    ? Image.network(
+                        product.imageUrls.first,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _buildProductImageFallback(product),
+                      )
+                    : _buildProductImageFallback(product),
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-                Text(
-                  product.category,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-                const SizedBox(height: 6),
-                InkWell(
-                  onTap: canOpenFarmerProfile
-                      ? () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AccountPage(id: farmer.id),
-                            ),
-                          );
-                        }
-                      : null,
-                  child: Row(
+                  Row(
                     children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 16,
-                        color: canOpenFarmerProfile
-                            ? Color(primaryColour)
-                            : Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          farmerName,
+                          product.category,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
+                            color: Colors.grey,
                             fontSize: 12,
-                            color: canOpenFarmerProfile
-                                ? Color(primaryColour)
-                                : Colors.grey[700],
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        trustScore != null ? 'Trust: $trustScore' : 'Trust: -',
-                        style: const TextStyle(
-                          fontSize: 11,
+                      if (product.qualityGrade.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Color(primaryColour).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            product.qualityGrade,
+                            style: TextStyle(
+                              color: Color(primaryColour),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (product.description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      product.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey[700], fontSize: 11),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  if (location.isNotEmpty)
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.place_outlined,
+                          size: 14,
                           color: Colors.grey,
-                          fontWeight: FontWeight.w500,
+                        ),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.event_available_outlined,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          'Harvested $harvestDate',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "\$${product.price.toStringAsFixed(2)} per kg",
-                      style: TextStyle(
-                        color: Color(primaryColour),
-                        fontWeight: FontWeight.bold,
-                      ),
+                  const Spacer(),
+                  InkWell(
+                    onTap: canOpenFarmerProfile
+                        ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AccountPage(id: farmer.id),
+                              ),
+                            );
+                          }
+                        : null,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 16,
+                          color: canOpenFarmerProfile
+                              ? Color(primaryColour)
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            farmerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: canOpenFarmerProfile
+                                  ? Color(primaryColour)
+                                  : Colors.grey[700],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          trustScore != null
+                              ? 'Trust: $trustScore'
+                              : 'Trust: -',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      constraints: const BoxConstraints(),
-                      padding: EdgeInsets.zero,
-                      icon: Icon(
-                        Icons.add_circle,
-                        color: _canPurchase ? Colors.green : Colors.grey,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "\$${product.price.toStringAsFixed(2)} per kg",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Color(primaryColour),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      onPressed: _canPurchase ? () => addToCart(product) : null,
-                    ),
-                  ],
-                ),
-              ],
+                      IconButton(
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          Icons.add_circle,
+                          color: _canPurchase ? Colors.green : Colors.grey,
+                        ),
+                        onPressed: _canPurchase
+                            ? () => addToCart(product)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProductImageFallback(Produce product) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(color: Colors.grey.shade100),
+      child: Center(
+        child: Text(
+          (product.name.isNotEmpty ? product.name[0] : '?').toUpperCase(),
+          style: const TextStyle(fontSize: 50),
+        ),
       ),
     );
   }

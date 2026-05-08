@@ -1,17 +1,20 @@
 import 'package:eharvest_mobile/pages/login_page.dart';
 import 'package:eharvest_mobile/pages/signup_page.dart';
 import 'package:eharvest_mobile/pages/home_page.dart';
+import 'package:eharvest_mobile/pages/payment_return_page.dart';
 import 'package:eharvest_mobile/pages/splash_page.dart';
 import 'package:eharvest_mobile/pages/tab_container.dart';
+import 'package:eharvest_mobile/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eharvest_mobile/global_variables.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Pre-load SharedPreferences so platform plugins are registered early.
   await SharedPreferences.getInstance();
+  // Initialize Firebase Cloud Messaging and push notifications
+  await NotificationService.init();
   runApp(const MyApp());
 }
 
@@ -34,6 +37,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginPage(),
         '/signup': (context) => const SignupPage(),
         '/home': (context) => const HomePage(),
+        '/payments/return': (context) => const PaymentReturnPage(),
       },
     );
   }
