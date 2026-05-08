@@ -53,7 +53,11 @@ class User {
       address: json['address'] ?? '',
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
-      trustScore: json['trust_score'] ?? 0,
+      trustScore:
+          int.tryParse(
+            (json['trust_score'] ?? json['trustScore'] ?? 0).toString(),
+          ) ??
+          0,
       usdBalance:
           double.tryParse(json['usd_balance']?.toString() ?? '0') ?? 0.0,
       zigBalance:
@@ -126,7 +130,11 @@ class Buyer {
       address: json['address'] ?? '',
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
-      trustScore: json['trust_score'] ?? 0,
+      trustScore:
+          int.tryParse(
+            (json['trust_score'] ?? json['trustScore'] ?? 0).toString(),
+          ) ??
+          0,
       usdBalance:
           double.tryParse(
             (json['usd_balance'] ?? json['usdBalance']).toString(),
@@ -212,7 +220,11 @@ class Farmer {
       address: json['address'] ?? '',
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
-      trustScore: json['trust_score'] ?? 0,
+      trustScore:
+          int.tryParse(
+            (json['trust_score'] ?? json['trustScore'] ?? 0).toString(),
+          ) ??
+          0,
       usdBalance:
           double.tryParse(
             (json['usd_balance'] ?? json['usdBalance']).toString(),
@@ -295,7 +307,11 @@ class LogisticsProvider {
       address: json['address'] ?? '',
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
-      trustScore: json['trust_score'] ?? json['trustScore'] ?? 0,
+      trustScore:
+          int.tryParse(
+            (json['trust_score'] ?? json['trustScore'] ?? 0).toString(),
+          ) ??
+          0,
       usdBalance:
           double.tryParse(
             (json['usd_balance'] ?? json['usdBalance']).toString(),

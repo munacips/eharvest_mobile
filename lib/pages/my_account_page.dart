@@ -1530,48 +1530,6 @@ class MyAccountPageState extends State<MyAccountPage> {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _aiTrustScore != null
-                        ? 'AI Trust: ${_aiTrustScore!.toStringAsFixed(2)}/${_aiTrustScale ?? 5}'
-                        : 'AI Trust: -',
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _aiTrustLoading ? null : _refreshAiTrustScore,
-                  icon: _aiTrustLoading
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh, size: 16),
-                  label: const Text('Refresh'),
-                ),
-              ],
-            ),
-            if (_aiReviewCount != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Reviews: $_aiReviewCount',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-            if (_aiTrustError != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(
-                    _aiTrustError!,
-                    style: TextStyle(fontSize: 12, color: Colors.red[700]),
-                  ),
-                ),
-              ),
           ],
         ),
       ),

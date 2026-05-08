@@ -708,7 +708,7 @@ class SellPageState extends State<SellPage> {
         'latitude': double.tryParse(_aiLatitudeController.text.trim()) ?? 0.0,
         'availableFrom': _availableDate.toIso8601String().split('T').first,
         'harvestDate': _harvestDate.toIso8601String().split('T').first,
-        'farmer': {'id': farmerId},
+        'farmer': farmerId,
         'imageUrls': [],
       };
 
@@ -729,7 +729,11 @@ class SellPageState extends State<SellPage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to list produce: ${response.statusCode}'),
+            content: Text(
+              response.body.isNotEmpty
+                  ? 'Failed to list produce: ${response.body}'
+                  : 'Failed to list produce: ${response.statusCode}',
+            ),
           ),
         );
       }

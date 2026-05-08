@@ -6,6 +6,7 @@ import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/pages/checkout_page.dart';
 import 'package:eharvest_mobile/pages/account_page.dart';
+import 'package:eharvest_mobile/pages/subscription_form_page.dart';
 
 class BuyPage extends StatefulWidget {
   final String? initialSearchQuery;
@@ -277,7 +278,7 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.62,
+                childAspectRatio: 0.54,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -330,6 +331,7 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
+            flex: 4,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(15),
@@ -348,8 +350,9 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
             ),
           ),
           Expanded(
+            flex: 6,
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(6.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -514,18 +517,48 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      IconButton(
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          Icons.add_circle,
-                          color: _canPurchase ? Colors.green : Colors.grey,
-                        ),
-                        onPressed: _canPurchase
-                            ? () => addToCart(product)
-                            : null,
-                      ),
                     ],
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 30,
+                    child: ElevatedButton.icon(
+                      onPressed: _canPurchase ? () => addToCart(product) : null,
+                      icon: const Icon(Icons.add_shopping_cart, size: 16),
+                      label: const Text('Add to Cart'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _canPurchase
+                            ? Colors.green
+                            : Colors.grey,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 30,
+                    child: OutlinedButton.icon(
+                      onPressed: _canPurchase
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      SubscriptionFormPage(produce: product),
+                                ),
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.repeat, size: 16),
+                      label: const Text('Subscribe'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                    ),
                   ),
                 ],
               ),
