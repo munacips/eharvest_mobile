@@ -58,6 +58,19 @@ class OrderService {
     return _decodeOrderResponse(response, 'create order');
   }
 
+  static Future<Order> fetchOrder(int orderId) async {
+    final token = await AuthService.getToken();
+    if (token == null) throw Exception('No auth token');
+    final response = await http.get(
+      Uri.parse('${api}orders/$orderId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    return _decodeOrderResponse(response, 'load order');
+  }
+
   static Future<Map<String, dynamic>> holdEscrow(int orderId) {
     return _postOrderAction(orderId, 'hold-escrow');
   }
@@ -76,6 +89,30 @@ class OrderService {
 
   static Future<Map<String, dynamic>> rejectOrder(int orderId) {
     return _postOrderAction(orderId, 'reject');
+  }
+
+  static Future<Map<String, dynamic>> proposeTransportFee(
+    int orderId,
+    double fee,
+  ) async {
+    final token = await AuthService.getToken();
+    if (token == null) throw Exception('No auth token');
+    final response = await http.post(
+      Uri.parse('${api}orders/$orderId/propose-transport-fee?fee=$fee'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    return _decodeObjectResponse(response, 'propose transport fee');
+  }
+
+  static Future<Map<String, dynamic>> acceptTransportFee(int orderId) {
+    return _postOrderAction(orderId, 'accept-transport-fee');
+  }
+
+  static Future<Map<String, dynamic>> rejectTransportFee(int orderId) {
+    return _postOrderAction(orderId, 'reject-transport-fee');
   }
 
   static Future<Map<String, dynamic>> _postOrderAction(

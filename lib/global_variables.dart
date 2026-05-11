@@ -381,6 +381,7 @@ class Produce {
   final int? farmerId;
   final Farmer? farmer;
   final List<String> imageUrls;
+  final bool canProvideTransport;
 
   Produce({
     required this.id,
@@ -398,6 +399,7 @@ class Produce {
     this.farmerId,
     this.farmer,
     this.imageUrls = const [],
+    this.canProvideTransport = false,
   });
 
   factory Produce.fromJson(Map<String, dynamic> json) {
@@ -441,6 +443,8 @@ class Produce {
               ),
             )
           : const [],
+      canProvideTransport:
+          json['canProvideTransport'] ?? json['can_provide_transport'] ?? false,
     );
   }
 
@@ -461,6 +465,7 @@ class Produce {
       if (farmer != null) 'farmer': {'id': farmer!.id},
       if (farmer == null && farmerId != null) 'farmer': {'id': farmerId},
       'imageUrls': imageUrls,
+      'canProvideTransport': canProvideTransport,
     };
   }
 }
@@ -478,6 +483,9 @@ class Order {
   final Farmer? farmer;
   final LogisticsRequest? logisticsRequest;
   final bool escrowReleased;
+  final String logisticsType;
+  final double? transportFee;
+  final bool escrowHeld;
 
   Order({
     required this.id,
@@ -490,6 +498,9 @@ class Order {
     this.farmer,
     this.logisticsRequest,
     required this.escrowReleased,
+    this.logisticsType = 'THIRD_PARTY',
+    this.transportFee,
+    this.escrowHeld = false,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -501,6 +512,7 @@ class Order {
         json['amount'];
     final rawEscrowAmount =
         json['escrow_amount'] ?? json['escrowAmount'] ?? rawTotalAmount;
+    final rawTransportFee = json['transport_fee'] ?? json['transportFee'];
 
     return Order(
       id: json['id'] ?? 0,
@@ -520,6 +532,15 @@ class Order {
           ? LogisticsRequest.fromJson(json['logistics_request'])
           : null,
       escrowReleased: json['escrow_released'] ?? json['escrowReleased'] ?? false,
+      logisticsType:
+          (json['logistics_type'] ?? json['logisticsType'] ?? 'THIRD_PARTY')
+              .toString(),
+      transportFee: rawTransportFee == null
+          ? null
+          : (rawTransportFee is num
+                ? rawTransportFee.toDouble()
+                : double.tryParse(rawTransportFee.toString())),
+      escrowHeld: json['escrow_held'] ?? json['escrowHeld'] ?? false,
     );
   }
 }

@@ -431,6 +431,25 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
                         ),
                       ],
                     ),
+                  if (product.canProvideTransport)
+                    Row(
+                      children: const [
+                        Icon(
+                          Icons.local_shipping_outlined,
+                          size: 14,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            'Farmer delivery available',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
                   Row(
                     children: [
                       const Icon(

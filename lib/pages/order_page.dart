@@ -298,12 +298,57 @@ class _OrderPageState extends State<OrderPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      ).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
     } finally {
       if (mounted) {
         setState(() => _actionLoading = false);
       }
     }
+  }
+
+  void _showTransportFeeDialog(Order order) {
+    final feeController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Propose transport fee'),
+          content: TextField(
+            controller: feeController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Fee',
+              prefixText: '\$ ',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final fee = double.tryParse(feeController.text.trim());
+                if (fee == null || fee <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter a transport fee greater than 0.'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(context).pop();
+                _runOrderAction(
+                  'Transport fee proposed.',
+                  () => OrderService.proposeTransportFee(order.id, fee),
+                );
+              },
+              child: const Text('Propose'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   bool get _isBuyer {
@@ -331,8 +376,61 @@ class _OrderPageState extends State<OrderPage> {
     final order = _order;
     if (order == null) return false;
     return _isBuyer &&
+        _isThirdParty &&
         !order.escrowReleased &&
+        !order.escrowHeld &&
         _availableBalance >= order.escrowAmount;
+  }
+
+  bool get _isThirdParty => _order?.logisticsType == 'THIRD_PARTY';
+  bool get _isFarmerDelivery => _order?.logisticsType == 'FARMER_DELIVERY';
+  bool get _isBuyerPickup => _order?.logisticsType == 'BUYER_PICKUP';
+
+  String _logisticsLabel(String logisticsType) {
+    switch (logisticsType) {
+      case 'FARMER_DELIVERY':
+        return 'Farmer delivery';
+      case 'BUYER_PICKUP':
+        return 'Buyer pickup';
+      case 'THIRD_PARTY':
+      default:
+        return 'Third-party logistics';
+    }
+  }
+
+  String _statusLabel(Order order) {
+    switch (order.status.toUpperCase()) {
+      case 'PENDING':
+      case 'NEW':
+        return 'Awaiting farmer response';
+      case 'ACCEPTED':
+        if (order.logisticsType == 'BUYER_PICKUP') return 'Ready for pickup';
+        if (order.logisticsType == 'FARMER_DELIVERY') {
+          return 'Awaiting transport fee proposal';
+        }
+        return 'Order accepted';
+      case 'AWAITING_TRANSPORT_FEE_APPROVAL':
+        return 'Awaiting buyer transport fee approval';
+      case 'IN_TRANSIT':
+      case 'DELIVERY_STARTED':
+        return 'In transit';
+      case 'DELIVERED':
+      case 'COMPLETED':
+        return 'Delivered';
+      case 'REJECTED':
+        return 'Rejected';
+      case 'CANCELLED':
+        return 'Cancelled';
+      default:
+        return order.status;
+    }
+  }
+
+  String _friendlyError(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '');
+    return message.isEmpty
+        ? 'That action is not available for this order right now.'
+        : message;
   }
 
   @override
@@ -405,7 +503,7 @@ class _OrderPageState extends State<OrderPage> {
                         ),
                       ),
                       const Spacer(),
-                      _statusChip(_order!.status),
+                      _statusChip(_statusLabel(_order!)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -432,7 +530,25 @@ class _OrderPageState extends State<OrderPage> {
                       Icon(Icons.attach_money, color: Colors.white70, size: 18),
                       const SizedBox(width: 6),
                       Text(
-                        'Total: ${_order!.totalAmount.toStringAsFixed(2)}',
+                        'Total: ${_order!.currency} ${_order!.totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.local_shipping_outlined,
+                        color: Colors.white70,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _logisticsLabel(_order!.logisticsType),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -515,7 +631,7 @@ class _OrderPageState extends State<OrderPage> {
             ),
             const SizedBox(height: 32),
             // Logistics Section
-            if (_order!.status.toLowerCase() == 'accepted')
+            if (_isThirdParty && _order!.status.toLowerCase() == 'accepted')
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Column(
@@ -621,9 +737,13 @@ class _OrderPageState extends State<OrderPage> {
     final order = _order!;
     final escrowText = order.escrowReleased
         ? 'Released to farmer'
-        : (_isStatus('REJECTED')
+        : (order.escrowHeld
+              ? 'Held'
+              : (_isStatus('REJECTED')
               ? 'Refunded or released by backend'
-              : 'Held or pending hold');
+              : 'Pending hold'));
+    final transportFee = order.transportFee;
+    final escrowTotal = order.totalAmount + (transportFee ?? 0);
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
@@ -651,13 +771,28 @@ class _OrderPageState extends State<OrderPage> {
             Text(
               'Escrow amount: ${order.currency} ${order.escrowAmount.toStringAsFixed(2)}',
             ),
+            Text('Logistics: ${_logisticsLabel(order.logisticsType)}'),
+            if (transportFee != null)
+              Text(
+                'Transport fee: ${order.currency} ${transportFee.toStringAsFixed(2)}',
+              ),
+            if (_isFarmerDelivery &&
+                _isStatus('AWAITING_TRANSPORT_FEE_APPROVAL') &&
+                transportFee != null)
+              Text(
+                'New escrow total: ${order.currency} ${escrowTotal.toStringAsFixed(2)}',
+              ),
             Text('Escrow status: $escrowText'),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (_isBuyer && !order.escrowReleased && !_isStatus('REJECTED'))
+                if (_isBuyer &&
+                    _isThirdParty &&
+                    !order.escrowReleased &&
+                    !order.escrowHeld &&
+                    !_isStatus('REJECTED'))
                   ElevatedButton.icon(
                     onPressed: _actionLoading || !_canHoldEscrow
                         ? null
@@ -696,7 +831,7 @@ class _OrderPageState extends State<OrderPage> {
                     icon: const Icon(Icons.close),
                     label: const Text('Reject'),
                   ),
-                if (_isFarmer && _isStatus('ACCEPTED'))
+                if (_isFarmer && _isThirdParty && _isStatus('ACCEPTED'))
                   OutlinedButton.icon(
                     onPressed: _actionLoading
                         ? null
@@ -707,10 +842,46 @@ class _OrderPageState extends State<OrderPage> {
                     icon: const Icon(Icons.local_shipping_outlined),
                     label: const Text('Delivery Started'),
                   ),
+                if (_isFarmer && _isFarmerDelivery && _isStatus('ACCEPTED'))
+                  OutlinedButton.icon(
+                    onPressed: _actionLoading
+                        ? null
+                        : () => _showTransportFeeDialog(order),
+                    icon: const Icon(Icons.request_quote_outlined),
+                    label: const Text('Propose transport fee'),
+                  ),
                 if (_isBuyer &&
-                    (_isStatus('DELIVERY_STARTED') ||
-                        _isStatus('IN_TRANSIT') ||
-                        _isStatus('ACCEPTED')))
+                    _isFarmerDelivery &&
+                    _isStatus('AWAITING_TRANSPORT_FEE_APPROVAL'))
+                  ElevatedButton.icon(
+                    onPressed: _actionLoading
+                        ? null
+                        : () => _runOrderAction(
+                            'Transport fee accepted.',
+                            () => OrderService.acceptTransportFee(order.id),
+                          ),
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Accept transport fee'),
+                  ),
+                if (_isBuyer &&
+                    _isFarmerDelivery &&
+                    _isStatus('AWAITING_TRANSPORT_FEE_APPROVAL'))
+                  OutlinedButton.icon(
+                    onPressed: _actionLoading
+                        ? null
+                        : () => _runOrderAction(
+                            'Transport fee rejected.',
+                            () => OrderService.rejectTransportFee(order.id),
+                          ),
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('Reject transport fee'),
+                  ),
+                if (_isBuyer &&
+                    ((_isThirdParty &&
+                            (_isStatus('DELIVERY_STARTED') ||
+                                _isStatus('IN_TRANSIT'))) ||
+                        (_isFarmerDelivery && _isStatus('IN_TRANSIT')) ||
+                        (_isBuyerPickup && _isStatus('ACCEPTED'))))
                   ElevatedButton.icon(
                     onPressed: _actionLoading
                         ? null
@@ -816,6 +987,13 @@ class _OrderPageState extends State<OrderPage> {
                     'Price: \$${item.price.toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 13, color: Colors.black87),
                   ),
+                  if (produce?.canProvideTransport ?? false) ...[
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Farmer delivery available',
+                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -25,6 +25,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   String? _submitError;
   Map<String, dynamic>? _profile;
   String _currency = 'USD';
+  String? _logisticsType;
 
   @override
   void initState() {
@@ -80,12 +81,38 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return PaymentService.balanceForCurrency(profile, _currency);
   }
 
+  bool get _farmerDeliveryAvailable {
+    return _cart.isNotEmpty &&
+        _cart.every((product) => product.canProvideTransport);
+  }
+
+  String get _placeOrderLabel {
+    switch (_logisticsType) {
+      case 'THIRD_PARTY':
+        return 'Place Order and Hold Escrow';
+      case 'FARMER_DELIVERY':
+        return 'Place Order';
+      case 'BUYER_PICKUP':
+        return 'Place Order for Pickup';
+      default:
+        return 'Choose Logistics to Continue';
+    }
+  }
+
   Future<void> _placeOrder() async {
     setState(() {
       _isSubmitting = true;
       _submitError = null;
     });
     try {
+      if (_logisticsType == null) {
+        setState(() {
+          _submitError = 'Please choose a logistics option.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
       final token = await AuthService.getToken();
       final buyerId = await AuthService.getUserId();
       if (token == null || buyerId == null) {
@@ -148,6 +175,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'totalAmount': totalAmount,
           'escrowAmount': totalAmount,
           'currency': _currency,
+          'logisticsType': _logisticsType,
         };
 
         if (orderItems.isEmpty) {
@@ -192,7 +220,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
           }
         }
 
-        await OrderService.holdEscrow(orderId);
+        if (_logisticsType == 'THIRD_PARTY') {
+          await OrderService.holdEscrow(orderId);
+        }
       }
 
       await _loadWallet();
@@ -222,6 +252,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           : Column(
               children: [
                 _walletSummary(),
+                _logisticsSelector(),
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
@@ -324,7 +355,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               : _placeOrder,
                           child: _isSubmitting
                               ? const CircularProgressIndicator()
-                              : const Text('Place Order and Hold Escrow'),
+                              : Text(_placeOrderLabel),
                         ),
                       ),
                     ],
@@ -374,7 +405,57 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 : 'Available: $_currency ${_availableBalance.toStringAsFixed(2)}',
           ),
           Text('Order amount: $_currency ${_cartTotal.toStringAsFixed(2)}'),
-          const Text('Escrow: held after order creation'),
+          Text(
+            _logisticsType == 'THIRD_PARTY'
+                ? 'Escrow: held after order creation'
+                : 'Escrow: held when the order is ready for delivery',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _logisticsSelector() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Logistics',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          RadioListTile<String>(
+            value: 'THIRD_PARTY',
+            groupValue: _logisticsType,
+            onChanged: _isSubmitting
+                ? null
+                : (value) => setState(() => _logisticsType = value),
+            title: const Text('Use third-party logistics'),
+            dense: true,
+          ),
+          RadioListTile<String>(
+            value: 'FARMER_DELIVERY',
+            groupValue: _logisticsType,
+            onChanged: _isSubmitting || !_farmerDeliveryAvailable
+                ? null
+                : (value) => setState(() => _logisticsType = value),
+            title: const Text('Farmer delivery'),
+            subtitle: _farmerDeliveryAvailable
+                ? null
+                : const Text('Unavailable for one or more cart items'),
+            dense: true,
+          ),
+          RadioListTile<String>(
+            value: 'BUYER_PICKUP',
+            groupValue: _logisticsType,
+            onChanged: _isSubmitting
+                ? null
+                : (value) => setState(() => _logisticsType = value),
+            title: const Text('Buyer pickup'),
+            dense: true,
+          ),
         ],
       ),
     );

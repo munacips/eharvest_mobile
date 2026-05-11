@@ -15,6 +15,8 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   static const String _pendingStatus = 'PENDING';
   static const String _acceptedStatus = 'ACCEPTED';
   static const String _rejectedStatus = 'REJECTED';
+  static const String _awaitingTransportFeeStatus =
+      'AWAITING_TRANSPORT_FEE_APPROVAL';
 
   List<Order> _orders = [];
   bool _isLoading = true;
@@ -103,6 +105,29 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     }
   }
 
+  Future<void> _proposeTransportFee(Order order, double fee) async {
+    setState(() {
+      _updatingOrderId = order.id;
+      _error = null;
+    });
+    try {
+      await OrderService.proposeTransportFee(order.id, fee);
+      if (!mounted) return;
+      await _fetchOrders();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Transport fee proposed.')),
+      );
+      setState(() => _updatingOrderId = null);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _updatingOrderId = null;
+      });
+    }
+  }
+
   bool _canProcessOrder(Order order) {
     return order.status == _newStatus || order.status == _pendingStatus;
   }
@@ -113,6 +138,81 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     final month = local.month.toString().padLeft(2, '0');
     final day = local.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
+  }
+
+  String _statusLabel(Order order) {
+    switch (order.status.toUpperCase()) {
+      case _pendingStatus:
+      case _newStatus:
+        return 'Awaiting farmer response';
+      case _acceptedStatus:
+        if (order.logisticsType == 'BUYER_PICKUP') return 'Ready for pickup';
+        if (order.logisticsType == 'FARMER_DELIVERY') {
+          return 'Awaiting transport fee proposal';
+        }
+        return 'Order accepted';
+      case _awaitingTransportFeeStatus:
+        return 'Awaiting buyer transport fee approval';
+      case 'IN_TRANSIT':
+        return 'In transit';
+      case 'DELIVERED':
+        return 'Delivered';
+      case _rejectedStatus:
+        return 'Rejected';
+      case 'CANCELLED':
+        return 'Cancelled';
+      default:
+        return order.status;
+    }
+  }
+
+  String _logisticsLabel(String logisticsType) {
+    switch (logisticsType) {
+      case 'FARMER_DELIVERY':
+        return 'Farmer delivery';
+      case 'BUYER_PICKUP':
+        return 'Buyer pickup';
+      case 'THIRD_PARTY':
+      default:
+        return 'Third-party logistics';
+    }
+  }
+
+  void _showTransportFeeDialog(Order order) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Propose transport fee'),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Fee', prefixText: '\$ '),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final fee = double.tryParse(controller.text.trim());
+              if (fee == null || fee <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Enter a transport fee greater than 0.'),
+                  ),
+                );
+                return;
+              }
+              Navigator.of(context).pop();
+              _proposeTransportFee(order, fee);
+            },
+            child: const Text('Propose'),
+          ),
+        ],
+      ),
+    );
   }
 
   Color _statusColor(String status) {
@@ -210,7 +310,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                   ),
                 ),
                 Chip(
-                  label: Text(order.status),
+                  label: Text(_statusLabel(order)),
                   backgroundColor: _statusColor(order.status),
                   labelStyle: const TextStyle(color: Colors.white),
                 ),
@@ -219,6 +319,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
             const SizedBox(height: 8),
             Text('Date: ${_formatDate(order.orderDate)}'),
             Text('Total: USD ${order.totalAmount.toStringAsFixed(2)}'),
+            Text('Logistics: ${_logisticsLabel(order.logisticsType)}'),
             if (order.buyer != null) Text('Buyer: ${order.buyer!.fullName}'),
             if (_canProcessOrder(order))
               Row(
@@ -255,6 +356,18 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                       ),
                     ),
                 ],
+              ),
+            if (order.logisticsType == 'FARMER_DELIVERY' &&
+                order.status == _acceptedStatus)
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.request_quote_outlined),
+                  label: const Text('Propose transport fee'),
+                  onPressed: isUpdating
+                      ? null
+                      : () => _showTransportFeeDialog(order),
+                ),
               ),
           ],
         ),

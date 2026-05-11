@@ -81,15 +81,20 @@ class LogisticsService {
   static LogisticsRequest _decodeRequest(http.Response response, String label) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       String message = 'Failed to $label (${response.statusCode}).';
+      final body = response.body.trim();
       try {
-        final decoded = json.decode(response.body);
+        final decoded = json.decode(body);
         if (decoded is Map<String, dynamic>) {
           message =
               decoded['message']?.toString() ??
               decoded['error']?.toString() ??
               message;
         }
-      } catch (_) {}
+      } catch (_) {
+        if (body.isNotEmpty) {
+          message = body;
+        }
+      }
       throw Exception(message);
     }
 

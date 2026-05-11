@@ -1,4 +1,3 @@
-import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/pages/subscription_detail_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/subscription_service.dart';

@@ -241,6 +241,17 @@ class _LogisticsListState extends State<LogisticsList> {
     }
   }
 
+  String _friendlyAcceptError(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    final lowerMessage = message.toLowerCase();
+    if (lowerMessage.contains('insufficient') &&
+        lowerMessage.contains('buyer') &&
+        lowerMessage.contains('balance')) {
+      return 'Cannot accept this request because the buyer has insufficient USD funds for logistics escrow.';
+    }
+    return message.isEmpty ? 'Unable to accept this request right now.' : message;
+  }
+
   Future<void> _acceptRequest(Map<String, dynamic> request) async {
     final requestId = _readInt(request, <String>['id'], fallback: -1);
     if (requestId <= 0) {
@@ -286,7 +297,7 @@ class _LogisticsListState extends State<LogisticsList> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error accepting request: $e')));
+      ).showSnackBar(SnackBar(content: Text(_friendlyAcceptError(e))));
     } finally {
       if (mounted) {
         setState(() {

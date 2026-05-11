@@ -41,6 +41,7 @@ class SellPageState extends State<SellPage> {
   String _selectedGrade = 'Grade A';
   DateTime _harvestDate = DateTime.now();
   DateTime _availableDate = DateTime.now();
+  bool _canProvideTransport = false;
 
   final List<String> _categories = [
     'Vegetables',
@@ -250,6 +251,19 @@ class SellPageState extends State<SellPage> {
               const SizedBox(height: 12),
 
               _buildAiSuggestionCard(),
+
+              const SizedBox(height: 15),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Can provide transport'),
+                subtitle: const Text('Allow buyers to request farmer delivery'),
+                value: _canProvideTransport,
+                activeThumbColor: Color(primaryColour),
+                onChanged: (value) {
+                  setState(() => _canProvideTransport = value);
+                },
+              ),
 
               const SizedBox(height: 15),
 
@@ -710,6 +724,7 @@ class SellPageState extends State<SellPage> {
         'harvestDate': _harvestDate.toIso8601String().split('T').first,
         'farmer': farmerId,
         'imageUrls': [],
+        'canProvideTransport': _canProvideTransport,
       };
 
       final response = await http.post(
@@ -755,6 +770,7 @@ class SellPageState extends State<SellPage> {
       _harvestDate = DateTime.now();
       _availableDate = DateTime.now();
       _selectedAiMonth = DateTime.now().month;
+      _canProvideTransport = false;
     });
   }
 
