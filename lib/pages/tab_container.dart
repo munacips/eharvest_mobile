@@ -10,6 +10,7 @@ import 'package:eharvest_mobile/pages/market_insights_page.dart';
 import 'package:eharvest_mobile/pages/season_recommendations_page.dart';
 import 'package:eharvest_mobile/pages/supply_map_screen.dart';
 import 'package:eharvest_mobile/pages/subscriptions_page.dart';
+import 'package:eharvest_mobile/pages/chat_inbox_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
@@ -99,6 +100,13 @@ class _TabContainerState extends State<TabContainer> {
         item: const BottomNavigationBarItem(
           icon: Icon(Icons.local_shipping),
           label: 'Logistics',
+        ),
+      ),
+      (
+        page: const ChatInboxPage(),
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.chat_bubble_outline),
+          label: 'Chat',
         ),
       ),
       (

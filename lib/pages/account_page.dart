@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/models/chat_models.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/services/chat_service.dart';
+import 'package:eharvest_mobile/pages/chat_conversation_page.dart';
+import 'package:eharvest_mobile/widgets/reviews_section.dart';
 
 class AccountPage extends StatefulWidget {
   final int id;
@@ -19,6 +23,7 @@ class _AccountPageState extends State<AccountPage> {
   Buyer? buyer;
   LogisticsProvider? logisticsProvider;
   bool isLoading = true;
+  bool isStartingConversation = false;
   String? errorMessage;
 
   @override
@@ -43,63 +48,64 @@ class _AccountPageState extends State<AccountPage> {
         return;
       }
 
-      final baseUri = Uri.parse('${api}users/${widget.id}');
-      final baseResponse = await http.get(
-        baseUri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final candidateEndpoints = <String>[
+        'farmers',
+        'buyers',
+        'logistics-providers',
+        'users',
+      ];
+      final triedStatuses = <String>[];
 
-      if (baseResponse.statusCode != 200) {
-        setState(() {
-          errorMessage =
-              'Failed to load account details: ${baseResponse.statusCode}';
-          isLoading = false;
-        });
-        return;
-      }
+      Map<String, dynamic>? finalData;
+      String? resolvedEndpoint;
 
-      final baseData = json.decode(baseResponse.body) as Map<String, dynamic>;
-      final roleRaw = (baseData['role'] ?? '').toString();
-      final roleKey = roleRaw.trim().toLowerCase().replaceAll(' ', '_');
-
-      final endpointByRole = <String, String>{
-        'farmer': 'farmers',
-        'buyer': 'buyers',
-        'logistics_provider': 'logistics-providers',
-        'logisticsprovider': 'logistics-providers',
-      };
-      final endpoint = endpointByRole[roleKey] ?? 'users';
-
-      Map<String, dynamic> finalData = baseData;
-      if (endpoint != 'users') {
-        final roleUri = Uri.parse('$api$endpoint/${widget.id}');
-        final roleResponse = await http.get(
-          roleUri,
+      for (final endpoint in candidateEndpoints) {
+        final uri = Uri.parse('$api$endpoint/${widget.id}');
+        final response = await http.get(
+          uri,
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
           },
         );
-        if (roleResponse.statusCode == 200) {
-          finalData = json.decode(roleResponse.body) as Map<String, dynamic>;
+
+        triedStatuses.add('/$endpoint/${widget.id}: ${response.statusCode}');
+
+        if (response.statusCode == 200) {
+          final decoded = json.decode(response.body);
+          if (decoded is Map<String, dynamic>) {
+            finalData = decoded;
+            resolvedEndpoint = endpoint;
+            break;
+          }
         }
       }
 
-      if (roleKey == 'farmer') {
+      if (finalData == null) {
+        setState(() {
+          errorMessage =
+              'Failed to load account details. Tried ${triedStatuses.join(', ')}';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final roleRaw = (finalData['role'] ?? '').toString();
+      final roleKey = roleRaw.trim().toLowerCase().replaceAll(' ', '_');
+
+      if (roleKey == 'farmer' || resolvedEndpoint == 'farmers') {
         farmer = Farmer.fromJson(finalData);
         buyer = null;
         logisticsProvider = null;
         user = null;
-      } else if (roleKey == 'buyer') {
+      } else if (roleKey == 'buyer' || resolvedEndpoint == 'buyers') {
         buyer = Buyer.fromJson(finalData);
         farmer = null;
         logisticsProvider = null;
         user = null;
       } else if (roleKey == 'logistics_provider' ||
-          roleKey == 'logisticsprovider') {
+          roleKey == 'logisticsprovider' ||
+          resolvedEndpoint == 'logistics-providers') {
         logisticsProvider = LogisticsProvider.fromJson(finalData);
         buyer = null;
         farmer = null;
@@ -119,6 +125,79 @@ class _AccountPageState extends State<AccountPage> {
         errorMessage = 'Error loading account details: $e';
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _startConversation() async {
+    if (isStartingConversation) {
+      return;
+    }
+
+    setState(() {
+      isStartingConversation = true;
+    });
+
+    try {
+      final currentUserId = await AuthService.getUserId();
+      if (currentUserId == null) {
+        throw Exception('Authentication required to start a conversation.');
+      }
+
+      if (currentUserId == widget.id) {
+        throw Exception('You cannot start a conversation with yourself.');
+      }
+
+      final chatService = ChatService.instance;
+      await chatService.ensureConnected();
+
+      final conversations = await chatService.fetchConversations(
+        userId: currentUserId,
+      );
+
+      ChatConversation? existingConversation;
+      for (final conversation in conversations) {
+        final memberIds = conversation.members.map((member) => member.userId).toSet();
+        if (!conversation.isGroup &&
+            memberIds.length == 2 &&
+            memberIds.contains(currentUserId) &&
+            memberIds.contains(widget.id)) {
+          existingConversation = conversation;
+          break;
+        }
+      }
+
+      final conversation =
+          existingConversation ??
+          await chatService.createConversation(
+            CreateConversationRequest(
+              memberIds: [currentUserId, widget.id],
+              name: null,
+              isGroup: false,
+            ),
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatConversationPage(conversation: conversation),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) {
+        setState(() {
+          isStartingConversation = false;
+        });
+      }
     }
   }
 
@@ -148,8 +227,13 @@ class _AccountPageState extends State<AccountPage> {
                       children: [
                         _buildTrustCard(),
                         const SizedBox(height: 20),
+                        ReviewsSection(userId: widget.id),
+                        const SizedBox(height: 20),
                         if (personalTiles.isNotEmpty) ...[
-                          _buildInfoSection('Contact Information', personalTiles),
+                          _buildInfoSection(
+                            'Contact Information',
+                            personalTiles,
+                          ),
                           const SizedBox(height: 20),
                         ],
                         if (businessTiles.isNotEmpty) ...[
@@ -169,6 +253,7 @@ class _AccountPageState extends State<AccountPage> {
     final name = _getField('fullName')?.toString() ?? '-';
     final role = _normalizedRole;
     final verified = _getField('verified') == true;
+    final canMessageUser = widget.id > 0;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 24, bottom: 24),
@@ -221,6 +306,27 @@ class _AccountPageState extends State<AccountPage> {
               letterSpacing: 1.1,
             ),
           ),
+          if (canMessageUser) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: isStartingConversation ? null : _startConversation,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(primaryColour),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
+              icon: isStartingConversation
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chat_bubble_outline),
+              label: Text(
+                isStartingConversation ? 'Opening chat...' : 'Message user',
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -306,7 +412,12 @@ class _AccountPageState extends State<AccountPage> {
   List<Widget> _buildBusinessInfoTiles() {
     final tiles = <Widget>[];
     if (_isFarmer) {
-      _addInfoTileIfValue(tiles, Icons.agriculture, 'Farm Name', _getField('farmName'));
+      _addInfoTileIfValue(
+        tiles,
+        Icons.agriculture,
+        'Farm Name',
+        _getField('farmName'),
+      );
       _addInfoTileIfValue(
         tiles,
         Icons.location_on,

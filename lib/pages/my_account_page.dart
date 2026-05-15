@@ -12,6 +12,7 @@ import 'package:eharvest_mobile/services/payment_redirect_stub.dart'
     if (dart.library.html) 'package:eharvest_mobile/services/payment_redirect_web.dart';
 import 'package:eharvest_mobile/services/payment_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
+import 'package:eharvest_mobile/widgets/reviews_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MyAccountPage extends StatefulWidget {
@@ -328,7 +329,9 @@ class MyAccountPageState extends State<MyAccountPage> {
   Future<void> _submitWithdrawal() async {
     final amount = double.tryParse(_withdrawAmountController.text.trim());
     if (amount == null || amount <= 0) {
-      setState(() => _paymentError = 'Enter a withdrawal amount greater than 0.');
+      setState(
+        () => _paymentError = 'Enter a withdrawal amount greater than 0.',
+      );
       return;
     }
 
@@ -815,6 +818,10 @@ class MyAccountPageState extends State<MyAccountPage> {
                       children: [
                         _buildTrustCard(),
                         const SizedBox(height: 16),
+                        if (_currentUserId != null) ...[
+                          ReviewsSection(userId: _currentUserId!),
+                          const SizedBox(height: 16),
+                        ],
                         if (hasBalances) ...[
                           _buildBalancesCard(),
                           const SizedBox(height: 20),

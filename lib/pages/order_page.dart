@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/order_service.dart';
 import 'package:eharvest_mobile/services/payment_service.dart';
+import 'package:eharvest_mobile/widgets/order_review_section.dart';
 
 class OrderPage extends StatefulWidget {
   final int orderId;
@@ -231,13 +232,15 @@ class _OrderPageState extends State<OrderPage> {
       return;
     }
 
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final token = await AuthService.getToken();
       if (token == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Authentication error')));
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Authentication error')),
+        );
         return;
       }
 
@@ -260,22 +263,20 @@ class _OrderPageState extends State<OrderPage> {
         if (!mounted) return;
         // Refresh order details to show the new logistics request
         await _fetchOrderDetails();
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Logistics request created successfully'),
           ),
         );
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('Failed to create logistics request')),
         );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -704,6 +705,18 @@ class _OrderPageState extends State<OrderPage> {
                 ),
               ),
             const SizedBox(height: 32),
+            if (_order != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: OrderReviewSection(
+                  order: _order!,
+                  logisticsRequest: logisticsRequest,
+                  currentUserId: _userId,
+                  currentUserRole: _role,
+                  onReviewCreated: _fetchOrderDetails,
+                ),
+              ),
+            if (_order != null) const SizedBox(height: 32),
           ],
         ),
       ),
@@ -740,8 +753,8 @@ class _OrderPageState extends State<OrderPage> {
         : (order.escrowHeld
               ? 'Held'
               : (_isStatus('REJECTED')
-              ? 'Refunded or released by backend'
-              : 'Pending hold'));
+                    ? 'Refunded or released by backend'
+                    : 'Pending hold'));
     final transportFee = order.transportFee;
     final escrowTotal = order.totalAmount + (transportFee ?? 0);
     return Card(
@@ -912,8 +925,9 @@ class _OrderPageState extends State<OrderPage> {
 
   Widget _orderItemCard(OrderItem item) {
     final produce = item.produce;
-    final produceImageUrl =
-        produce?.imageUrls.isNotEmpty == true ? produce!.imageUrls.first : null;
+    final produceImageUrl = produce?.imageUrls.isNotEmpty == true
+        ? produce!.imageUrls.first
+        : null;
     final produceDetails = [
       if (produce?.category.isNotEmpty ?? false) produce!.category,
       if (produce?.qualityGrade.isNotEmpty ?? false) produce!.qualityGrade,
@@ -931,8 +945,8 @@ class _OrderPageState extends State<OrderPage> {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
-              width: 48,
-              height: 48,
+                width: 48,
+                height: 48,
                 child: produceImageUrl != null
                     ? Image.network(
                         produceImageUrl,

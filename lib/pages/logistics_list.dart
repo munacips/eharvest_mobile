@@ -249,7 +249,9 @@ class _LogisticsListState extends State<LogisticsList> {
         lowerMessage.contains('balance')) {
       return 'Cannot accept this request because the buyer has insufficient USD funds for logistics escrow.';
     }
-    return message.isEmpty ? 'Unable to accept this request right now.' : message;
+    return message.isEmpty
+        ? 'Unable to accept this request right now.'
+        : message;
   }
 
   Future<void> _acceptRequest(Map<String, dynamic> request) async {
@@ -285,7 +287,9 @@ class _LogisticsListState extends State<LogisticsList> {
           : '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Request #$requestId accepted successfully.$escrowText'),
+          content: Text(
+            'Request #$requestId accepted successfully.$escrowText',
+          ),
         ),
       );
       setState(() {
@@ -330,11 +334,12 @@ class _LogisticsListState extends State<LogisticsList> {
     final accepting = _acceptingIds.contains(requestId);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.1),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -345,81 +350,95 @@ class _LogisticsListState extends State<LogisticsList> {
                     'Request #$requestId',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                      fontSize: 16,
                     ),
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
+                    horizontal: 12,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.orange.shade200),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.orange.shade200,
+                      width: 1.5,
+                    ),
                   ),
                   child: Text(
                     statusText.isEmpty ? 'PENDING' : statusText,
                     style: TextStyle(
                       color: Colors.orange.shade800,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
             _detailRow(
               Icons.upload_rounded,
               'From',
               pickup.isEmpty ? 'Unknown' : pickup,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 10),
             _detailRow(
               Icons.download_rounded,
               'To',
               delivery.isEmpty ? 'Unknown' : delivery,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 10),
             _detailRow(Icons.person_outline, 'Buyer', _fullName(buyer)),
             if (buyerPhone.isNotEmpty) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 10),
               _detailRow(Icons.phone_outlined, 'Buyer Phone', buyerPhone),
             ],
-            const SizedBox(height: 4),
+            const SizedBox(height: 10),
             _detailRow(Icons.agriculture_outlined, 'Farmer', _fullName(farmer)),
-            const SizedBox(height: 4),
+            const SizedBox(height: 10),
             _detailRow(
               Icons.payments_outlined,
-              'Price Set',
+              'Price',
               '\$${cost.toStringAsFixed(2)}',
             ),
             if (createdAt.isNotEmpty) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 10),
               _detailRow(Icons.schedule_outlined, 'Created', createdAt),
             ],
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: accepting ? null : () => _acceptRequest(request),
                 icon: accepting
                     ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
                       )
-                    : const Icon(Icons.check_circle_outline),
-                label: Text(accepting ? 'Accepting...' : 'Accept Request'),
+                    : const Icon(Icons.check_circle_outline, size: 20),
+                label: Text(
+                  accepting ? 'Accepting...' : 'Accept Request',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(primaryColour),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  disabledBackgroundColor: Colors.grey.shade400,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: 2,
                 ),
               ),
             ),
@@ -433,20 +452,29 @@ class _LogisticsListState extends State<LogisticsList> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 15, color: Colors.grey[700]),
-        const SizedBox(width: 6),
+        Icon(icon, size: 16, color: Color(primaryColour).withOpacity(0.7)),
+        const SizedBox(width: 10),
         SizedBox(
-          width: 76,
+          width: 70,
           child: Text(
             '$label:',
             style: TextStyle(
-              color: Colors.grey[700],
+              color: Colors.grey.shade700,
               fontWeight: FontWeight.w600,
-              fontSize: 12,
+              fontSize: 13,
             ),
           ),
         ),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade900,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -457,25 +485,42 @@ class _LogisticsListState extends State<LogisticsList> {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Color(primaryColour),
             borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(20),
+              bottom: Radius.circular(24),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: const Text(
-            'Pending Requests',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+          child: Row(
+            children: [
+              Icon(Icons.local_shipping_rounded, color: Colors.white, size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Pending Requests',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refreshRequests,
+            color: Color(primaryColour),
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
@@ -483,23 +528,137 @@ class _LogisticsListState extends State<LogisticsList> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     children: [
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _loadRequests,
-                        child: const Text('Retry'),
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 80),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: Icon(
+                                  Icons.error_outline,
+                                  size: 50,
+                                  color: Colors.red.shade400,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'Something went wrong',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade800,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _error!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _loadRequests,
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('Retry'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Color(primaryColour),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   )
                 : _requests.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
+                    children: [
                       Center(
-                        child: Text(
-                          'No pending logistics requests right now.',
-                          style: TextStyle(color: Colors.grey),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 80,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: Icon(
+                                  Icons.local_shipping_outlined,
+                                  size: 50,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'No Pending Requests',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade800,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'You\'re all caught up! There are no pending logistics requests right now.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _refreshRequests,
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('Refresh'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Color(primaryColour),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 // Note: You would need to import the other model files here.
 // For example, in Produce.dart, you'd add: import 'farmer.dart';
 // I've kept them all in one file for this example.
@@ -531,7 +533,8 @@ class Order {
       logisticsRequest: json['logistics_request'] != null
           ? LogisticsRequest.fromJson(json['logistics_request'])
           : null,
-      escrowReleased: json['escrow_released'] ?? json['escrowReleased'] ?? false,
+      escrowReleased:
+          json['escrow_released'] ?? json['escrowReleased'] ?? false,
       logisticsType:
           (json['logistics_type'] ?? json['logisticsType'] ?? 'THIRD_PARTY')
               .toString(),
@@ -631,6 +634,8 @@ class Review {
   final int rating;
   final String comment;
   final DateTime createdAt;
+  final int reviewerId;
+  final int revieweeId;
   final User? reviewer;
   final User? reviewee;
 
@@ -639,22 +644,57 @@ class Review {
     required this.rating,
     required this.comment,
     required this.createdAt,
+    required this.reviewerId,
+    required this.revieweeId,
     this.reviewer,
     this.reviewee,
   });
 
   factory Review.fromJson(Map<String, dynamic> json) {
+    final reviewerJson = json['reviewer'];
+    final revieweeJson = json['reviewee'];
+    final rawCreatedAt =
+        json['createdAt'] ?? json['created_at'] ?? json['dateCreated'];
     return Review(
       id: json['id'] ?? 0,
-      rating: json['rating'] ?? 0,
+      rating: int.tryParse(json['rating']?.toString() ?? '0') ?? 0,
       comment: json['comment'] ?? '',
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      reviewer: json['reviewer'] != null
-          ? User.fromJson(json['reviewer'])
-          : null,
-      reviewee: json['reviewee'] != null
-          ? User.fromJson(json['reviewee'])
-          : null,
+      createdAt:
+          DateTime.tryParse(rawCreatedAt?.toString() ?? '') ?? DateTime.now(),
+      reviewerId:
+          int.tryParse(
+            (json['reviewerId'] ??
+                    json['reviewer_id'] ??
+                    (reviewerJson is Map ? reviewerJson['id'] : 0))
+                .toString(),
+          ) ??
+          0,
+      revieweeId:
+          int.tryParse(
+            (json['revieweeId'] ??
+                    json['reviewee_id'] ??
+                    (revieweeJson is Map ? revieweeJson['id'] : 0))
+                .toString(),
+          ) ??
+          0,
+      reviewer: reviewerJson is Map<String, dynamic>
+          ? User.fromJson(reviewerJson)
+          : (reviewerJson is Map
+                ? User.fromJson(
+                    reviewerJson.map(
+                      (key, value) => MapEntry(key.toString(), value),
+                    ),
+                  )
+                : null),
+      reviewee: revieweeJson is Map<String, dynamic>
+          ? User.fromJson(revieweeJson)
+          : (revieweeJson is Map
+                ? User.fromJson(
+                    revieweeJson.map(
+                      (key, value) => MapEntry(key.toString(), value),
+                    ),
+                  )
+                : null),
     );
   }
 }
@@ -746,6 +786,37 @@ const backgroundLight = 0xFFF9F9F9;
 const backgroundNeutral = 0xFFECECEC;
 const textCharcoalGrey = 0xFF212121;
 
-const api = "http://localhost:8080/api/v1/";
-const authApi = "http://localhost:8080/auth/";
-const aiApi = "http://localhost:8000";
+class AppConfig {
+  static const String _scheme =
+      String.fromEnvironment('EHARVEST_API_SCHEME', defaultValue: 'http');
+  static const String _hostOverride = String.fromEnvironment(
+    'EHARVEST_API_HOST',
+    defaultValue: '',
+  );
+  static const String _port = String.fromEnvironment(
+    'EHARVEST_API_PORT',
+    defaultValue: '8080',
+  );
+  static const String _aiPort = String.fromEnvironment(
+    'EHARVEST_AI_PORT',
+    defaultValue: '8000',
+  );
+
+  static String get host {
+    if (_hostOverride.isNotEmpty) {
+      return _hostOverride;
+    }
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return '10.0.2.2';
+    }
+    return 'localhost';
+  }
+
+  static String get baseHttpUrl => '$_scheme://$host:$_port';
+  static String get baseAiUrl => '$_scheme://$host:$_aiPort';
+  static String get chatWebSocketUrl => '$baseHttpUrl/ws';
+}
+
+String get api => '${AppConfig.baseHttpUrl}/api/v1/';
+String get authApi => '${AppConfig.baseHttpUrl}/auth/';
+String get aiApi => AppConfig.baseAiUrl;
