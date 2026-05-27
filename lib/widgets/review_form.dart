@@ -1,5 +1,6 @@
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
+import 'package:eharvest_mobile/widgets/star_rating_input.dart';
 import 'package:flutter/material.dart';
 
 class ReviewForm extends StatefulWidget {
@@ -152,30 +153,15 @@ class _ReviewFormState extends State<ReviewForm> {
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: List.generate(5, (index) {
-            final starValue = index + 1;
-            final selected = starValue <= _rating;
-            return IconButton(
-              onPressed: _submitting
-                  ? null
-                  : () {
-                      setState(() {
-                        _rating = starValue;
-                        _errorMessage = null;
-                      });
-                    },
-              icon: Icon(
-                selected ? Icons.star : Icons.star_border,
-                color: selected ? Colors.amber.shade700 : Colors.grey.shade400,
-                size: 30,
-              ),
-              tooltip: '$starValue star${starValue == 1 ? '' : 's'}',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            );
-          }),
+        StarRatingInput(
+          rating: _rating,
+          enabled: !_submitting,
+          onChanged: (value) {
+            setState(() {
+              _rating = value;
+              _errorMessage = null;
+            });
+          },
         ),
         const SizedBox(height: 16),
         TextField(

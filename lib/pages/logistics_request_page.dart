@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'package:eharvest_mobile/models/tracking_update.dart';
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/logistics_service.dart';
+import 'package:eharvest_mobile/services/tracking_service.dart';
+import 'package:latlong2/latlong.dart';
 
 class LogisticsRequestPage extends StatefulWidget {
   final LogisticsRequest logisticsRequest;
@@ -22,13 +28,25 @@ class LogisticsRequestPage extends StatefulWidget {
 }
 
 class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
+  static const LatLng _defaultMapCenter = LatLng(-19.0154, 29.1549);
+
   late LogisticsRequest _logisticsRequest;
   late TextEditingController _deliveryLocationController;
+  final MapController _mapController = MapController();
   bool _isEditing = false;
   bool _isSaving = false;
   bool _actionLoading = false;
+  bool _trackingLoading = true;
+  bool _isPublishingLocation = false;
+  String? _trackingError;
   int? _userId;
   String _roleKey = '';
+  TrackingUpdate? _trackingUpdate;
+  TrackingConnectionStatus _trackingStatus =
+      TrackingConnectionStatus.disconnected;
+  OrderTrackingSubscription? _trackingSubscription;
+  Timer? _providerLocationTimer;
+  bool _hasCenteredOnTrackedLocation = false;
 
   @override
   void initState() {
@@ -38,12 +56,116 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
       text: _logisticsRequest.deliveryLocation,
     );
     _loadCurrentUser();
+    _initializeTracking();
   }
 
   @override
   void dispose() {
+    _providerLocationTimer?.cancel();
+    _trackingSubscription?.disconnect();
     _deliveryLocationController.dispose();
     super.dispose();
+  }
+
+  int? get _orderId => _logisticsRequest.order?.id;
+
+  Future<void> _initializeTracking() async {
+    final orderId = _orderId;
+    if (orderId == null) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _trackingLoading = false;
+        _trackingError = 'Tracking is unavailable for this delivery right now.';
+      });
+      return;
+    }
+
+    setState(() {
+      _trackingLoading = true;
+      _trackingError = null;
+    });
+
+    try {
+      final lastKnown = await TrackingService.fetchLastKnownLocation(orderId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _trackingUpdate = lastKnown;
+      });
+      _centerMapOnTrackedLocation(lastKnown);
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _trackingError = e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _trackingLoading = false;
+        });
+      }
+    }
+
+    _trackingSubscription?.disconnect();
+    _trackingSubscription = TrackingService.subscribeToOrderTracking(
+      orderId: orderId,
+      onLocation: (update) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _trackingUpdate = update;
+          _trackingError = null;
+        });
+        _centerMapOnTrackedLocation(update);
+      },
+      onStatusChanged: (status) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _trackingStatus = status;
+        });
+      },
+      onError: (message) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _trackingError = message;
+        });
+      },
+    );
+  }
+
+  void _centerMapOnTrackedLocation(TrackingUpdate? update) {
+    if (update == null || !mounted) {
+      return;
+    }
+
+    final nextCenter = LatLng(update.latitude, update.longitude);
+    if (!_hasCenteredOnTrackedLocation) {
+      _hasCenteredOnTrackedLocation = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _mapController.move(nextCenter, 14);
+      });
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _mapController.move(nextCenter, _mapController.camera.zoom);
+    });
   }
 
   Future<void> _updateLogisticsRequest() async {
@@ -126,6 +248,7 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
           .toLowerCase()
           .replaceAll(RegExp(r'[\s-]+'), '_');
     });
+    _syncProviderLocationPublishing();
   }
 
   Future<void> _refreshRequest() async {
@@ -135,6 +258,7 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
       _logisticsRequest = updated;
       _deliveryLocationController.text = updated.deliveryLocation;
     });
+    _syncProviderLocationPublishing();
     widget.onUpdate?.call();
   }
 
@@ -150,6 +274,7 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
         _logisticsRequest = updated;
         _deliveryLocationController.text = updated.deliveryLocation;
       });
+      _syncProviderLocationPublishing();
       widget.onUpdate?.call();
       ScaffoldMessenger.of(
         context,
@@ -186,6 +311,131 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
   bool get _canConfirmDelivered {
     final status = _normalizeStatus(_logisticsRequest.status);
     return _isBuyer && status == 'in_transit';
+  }
+
+  bool get _isActiveProviderDelivery {
+    final status = _normalizeStatus(_logisticsRequest.status);
+    return _isProvider &&
+        _orderId != null &&
+        <String>{'accepted', 'assigned', 'in_transit'}.contains(status);
+  }
+
+  Future<void> _syncProviderLocationPublishing() async {
+    if (!_isActiveProviderDelivery) {
+      _providerLocationTimer?.cancel();
+      _providerLocationTimer = null;
+      return;
+    }
+
+    if (_providerLocationTimer != null) {
+      return;
+    }
+
+    final hasPermission = await TrackingService.ensureLocationPermission();
+    if (!mounted) {
+      return;
+    }
+    if (!hasPermission) {
+      setState(() {
+        _trackingError =
+            'Location permission is required to share live delivery updates.';
+      });
+      return;
+    }
+
+    await _publishCurrentProviderLocation();
+    _providerLocationTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _publishCurrentProviderLocation();
+    });
+  }
+
+  Future<void> _publishCurrentProviderLocation() async {
+    if (_isPublishingLocation || !_isActiveProviderDelivery) {
+      return;
+    }
+
+    final orderId = _orderId;
+    final providerId = _logisticsRequest.assignedProvider?.id ?? _userId;
+    if (orderId == null || providerId == null) {
+      return;
+    }
+
+    _isPublishingLocation = true;
+    try {
+      final position = await TrackingService.getCurrentPosition();
+      final update = _trackingFromPosition(
+        orderId: orderId,
+        providerId: providerId,
+        position: position,
+      );
+      await TrackingService.publishLocation(update);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _trackingUpdate = update;
+        _trackingError = null;
+      });
+      _centerMapOnTrackedLocation(update);
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _trackingError = 'Unable to share live driver location right now.';
+      });
+    } finally {
+      _isPublishingLocation = false;
+    }
+  }
+
+  TrackingUpdate _trackingFromPosition({
+    required int orderId,
+    required int providerId,
+    required Position position,
+  }) {
+    final heading = position.heading.isFinite ? position.heading : 0.0;
+    final speed = position.speed.isFinite ? position.speed : 0.0;
+    return TrackingUpdate(
+      orderId: orderId,
+      providerId: providerId,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      heading: heading,
+      speed: speed,
+      timestamp: DateTime.now(),
+    );
+  }
+
+  String _trackingStatusLabel() {
+    switch (_trackingStatus) {
+      case TrackingConnectionStatus.connecting:
+        return 'Connecting to live tracking...';
+      case TrackingConnectionStatus.connected:
+        return _trackingUpdate == null
+            ? 'Connected. Waiting for driver location.'
+            : 'Live tracking connected';
+      case TrackingConnectionStatus.reconnecting:
+        return 'Reconnecting to live tracking...';
+      case TrackingConnectionStatus.authExpired:
+        return 'Tracking session expired';
+      case TrackingConnectionStatus.disconnected:
+        return 'Live tracking offline';
+    }
+  }
+
+  Color _trackingStatusColor() {
+    switch (_trackingStatus) {
+      case TrackingConnectionStatus.connected:
+        return Colors.green;
+      case TrackingConnectionStatus.connecting:
+      case TrackingConnectionStatus.reconnecting:
+        return Colors.orange;
+      case TrackingConnectionStatus.authExpired:
+        return Colors.red;
+      case TrackingConnectionStatus.disconnected:
+        return Colors.blueGrey;
+    }
   }
 
   @override
@@ -318,6 +568,8 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
               value: _logisticsRequest.status,
             ),
             const SizedBox(height: 12),
+            _buildTrackingCard(),
+            const SizedBox(height: 12),
             _buildDetailCard(
               icon: Icons.lock_outline,
               label: 'Escrow',
@@ -440,6 +692,199 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
           onPressed: _actionLoading ? null : _refreshRequest,
           icon: const Icon(Icons.refresh),
           label: const Text('Refresh status'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrackingCard() {
+    final trackedPoint = _trackingUpdate == null
+        ? _defaultMapCenter
+        : LatLng(_trackingUpdate!.latitude, _trackingUpdate!.longitude);
+    final hasLiveLocation = _trackingUpdate != null;
+    final statusColor = _trackingStatusColor();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.map_outlined, color: Color(primaryColour), size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Live Order Tracking',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _trackingStatusLabel(),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 240,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: trackedPoint,
+                      initialZoom: hasLiveLocation ? 14 : 6.5,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        subdomains: const ['a', 'b', 'c'],
+                      ),
+                      MarkerLayer(
+                        markers: hasLiveLocation
+                            ? [
+                                Marker(
+                                  point: trackedPoint,
+                                  width: 84,
+                                  height: 84,
+                                  child: _buildDriverMarker(),
+                                ),
+                              ]
+                            : const <Marker>[],
+                      ),
+                    ],
+                  ),
+                  if (_trackingLoading)
+                    Container(
+                      color: Colors.black.withOpacity(0.12),
+                      alignment: Alignment.center,
+                      child: const CircularProgressIndicator(),
+                    ),
+                  if (!_trackingLoading && !hasLiveLocation)
+                    Container(
+                      color: Colors.black.withOpacity(0.22),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(20),
+                      child: const Text(
+                        'Waiting for driver location',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_trackingError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                _trackingError!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+          if (hasLiveLocation) ...[
+            Text(
+              'Driver position: ${_trackingUpdate!.latitude.toStringAsFixed(5)}, ${_trackingUpdate!.longitude.toStringAsFixed(5)}',
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Heading ${_trackingUpdate!.heading.toStringAsFixed(0)}°  •  Speed ${_trackingUpdate!.speed.toStringAsFixed(1)} m/s',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            if (_trackingUpdate!.timestamp != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Last update ${_trackingUpdate!.timestamp!.toLocal()}',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+          ] else
+            const Text(
+              'The map will update automatically as soon as the driver starts sharing location.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: _initializeTracking,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reload tracking'),
+              ),
+              if (_trackingStatus != TrackingConnectionStatus.connected)
+                TextButton.icon(
+                  onPressed: () => _trackingSubscription?.reconnectNow(),
+                  icon: const Icon(Icons.wifi_protected_setup),
+                  label: const Text('Reconnect'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDriverMarker() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Color(primaryColour),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.local_shipping,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+        Container(
+          width: 3,
+          height: 18,
+          color: Color(primaryColour),
         ),
       ],
     );

@@ -29,27 +29,76 @@ class SupplyHeatmapService {
     }
 
     final decoded = jsonDecode(body);
-    List<dynamic> rawItems = <dynamic>[];
-
-    if (decoded is List) {
-      rawItems = decoded;
-    } else if (decoded is Map<String, dynamic>) {
-      if (decoded['data'] is List) {
-        rawItems = decoded['data'] as List<dynamic>;
-      } else if (decoded['points'] is List) {
-        rawItems = decoded['points'] as List<dynamic>;
-      } else if (decoded['heatmap'] is List) {
-        rawItems = decoded['heatmap'] as List<dynamic>;
-      }
-    }
+    final rawItems = _extractItems(decoded);
 
     return rawItems
         .whereType<Map>()
         .map<Map<String, dynamic>>(
           (item) => item.map((key, value) => MapEntry(key.toString(), value)),
         )
-        .map(HeatmapPoint.fromJson)
-        .where((point) => point.latitude != 0.0 || point.longitude != 0.0)
-        .toList();
+        .map(_parsePoint)
+        .whereType<HeatmapPoint>()
+        .toList(growable: false);
+  }
+
+  static List<dynamic> _extractItems(dynamic decoded) {
+    if (decoded is List) {
+      return decoded;
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      const candidateKeys = <String>[
+        'data',
+        'points',
+        'heatmap',
+        'results',
+        'items',
+      ];
+
+      for (final key in candidateKeys) {
+        final value = decoded[key];
+        if (value is List) {
+          return value;
+        }
+      }
+    }
+
+    throw const FormatException(
+      'Supply heatmap response did not contain a heatmap array.',
+    );
+  }
+
+  static HeatmapPoint? _parsePoint(Map<String, dynamic> item) {
+    final latitude =
+        double.tryParse((item['latitude'] ?? item['lat'] ?? '').toString()) ??
+        0.0;
+    final longitude =
+        double.tryParse((item['longitude'] ?? item['lng'] ?? '').toString()) ??
+        0.0;
+    final weightKg =
+        double.tryParse(
+          (item['weight_kg'] ??
+                  item['weightKg'] ??
+                  item['total_kg'] ??
+                  item['totalKg'] ??
+                  item['normalizedWeight'] ??
+                  '')
+              .toString(),
+        ) ??
+        0.0;
+
+    if (latitude == 0.0 && longitude == 0.0) {
+      return null;
+    }
+
+    if (weightKg <= 0.0) {
+      return null;
+    }
+
+    return HeatmapPoint(
+      latitude: latitude,
+      longitude: longitude,
+      normalizedWeight: weightKg,
+    );
   }
 }

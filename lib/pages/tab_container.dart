@@ -4,14 +4,14 @@ import 'package:eharvest_mobile/pages/buy_page.dart';
 import 'package:eharvest_mobile/pages/sell_page.dart';
 import 'package:eharvest_mobile/pages/logistics_page.dart';
 import 'package:eharvest_mobile/pages/ai_forecast_page.dart';
-import 'package:eharvest_mobile/pages/bulk_pricing_page.dart';
 import 'package:eharvest_mobile/pages/demand_supply_forecast_page.dart';
-import 'package:eharvest_mobile/pages/market_insights_page.dart';
 import 'package:eharvest_mobile/pages/season_recommendations_page.dart';
 import 'package:eharvest_mobile/pages/supply_map_screen.dart';
 import 'package:eharvest_mobile/pages/subscriptions_page.dart';
 import 'package:eharvest_mobile/pages/chat_inbox_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/services/review_service.dart';
+import 'package:eharvest_mobile/widgets/count_badge.dart';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +31,7 @@ class _TabContainerState extends State<TabContainer> {
   void initState() {
     super.initState();
     _loadRole();
+    _refreshPendingReviewCount();
   }
 
   String _normalizeRoleKey(String rawRole) {
@@ -65,6 +66,12 @@ class _TabContainerState extends State<TabContainer> {
       _roleKey = _normalizeRoleKey(role ?? '');
       _currentIndex = 0;
     });
+  }
+
+  Future<void> _refreshPendingReviewCount() async {
+    try {
+      await ReviewService.refreshPendingReviewCount();
+    } catch (_) {}
   }
 
   bool get _canAccessBuy => _roleKey == 'buyer';
@@ -111,8 +118,24 @@ class _TabContainerState extends State<TabContainer> {
       ),
       (
         page: const MyAccountPage(),
-        item: const BottomNavigationBarItem(
-          icon: Icon(Icons.account_circle),
+        item: BottomNavigationBarItem(
+          icon: ValueListenableBuilder<int>(
+            valueListenable: ReviewService.pendingReviewCount,
+            builder: (context, count, _) {
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.account_circle),
+                  if (count > 0)
+                    const Positioned(
+                      top: -6,
+                      right: -12,
+                      child: _MyAccountBadge(),
+                    ),
+                ],
+              );
+            },
+          ),
           label: 'My Account',
         ),
       ),
@@ -176,17 +199,17 @@ class _TabContainerState extends State<TabContainer> {
                 );
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.price_check),
-              title: const Text('Bulk Pricing'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BulkPricingPage()),
-                );
-              },
-            ),
+            // ListTile(
+            //   leading: const Icon(Icons.price_check),
+            //   title: const Text('Bulk Pricing'),
+            //   onTap: () {
+            //     Navigator.pop(context);
+            //     Navigator.push(
+            //       context,
+            //       MaterialPageRoute(builder: (_) => const BulkPricingPage()),
+            //     );
+            //   },
+            // ),
             ListTile(
               leading: const Icon(Icons.timeline),
               title: const Text('Demand & Supply'),
@@ -210,17 +233,6 @@ class _TabContainerState extends State<TabContainer> {
                   MaterialPageRoute(
                     builder: (_) => const SeasonRecommendationsPage(),
                   ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.public),
-              title: const Text('Market Insights'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MarketInsightsPage()),
                 );
               },
             ),
@@ -272,6 +284,7 @@ class _TabContainerState extends State<TabContainer> {
               setState(() {
                 _currentIndex = index;
               });
+              _refreshPendingReviewCount();
             },
             type: BottomNavigationBarType.fixed,
             selectedItemColor: Color(primaryColour),
@@ -280,6 +293,18 @@ class _TabContainerState extends State<TabContainer> {
           );
         },
       ),
+    );
+  }
+}
+
+class _MyAccountBadge extends StatelessWidget {
+  const _MyAccountBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ReviewService.pendingReviewCount,
+      builder: (context, count, _) => CountBadge(count: count),
     );
   }
 }

@@ -74,9 +74,7 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
   }
 
   Future<void> _loadConversations({required bool showLoader}) async {
-    if (_userId == null) {
-      _userId = await AuthService.getUserId();
-    }
+    _userId ??= await AuthService.getUserId();
     if (_userId == null) {
       if (!mounted) {
         return;

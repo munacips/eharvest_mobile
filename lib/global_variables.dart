@@ -631,8 +631,10 @@ class LogisticsRequest {
 /// Based on Review.java
 class Review {
   final int id;
+  final int orderId;
   final int rating;
   final String comment;
+  final String status;
   final DateTime createdAt;
   final int reviewerId;
   final int revieweeId;
@@ -641,8 +643,10 @@ class Review {
 
   Review({
     required this.id,
+    required this.orderId,
     required this.rating,
     required this.comment,
+    required this.status,
     required this.createdAt,
     required this.reviewerId,
     required this.revieweeId,
@@ -657,8 +661,16 @@ class Review {
         json['createdAt'] ?? json['created_at'] ?? json['dateCreated'];
     return Review(
       id: json['id'] ?? 0,
+      orderId: int.tryParse(
+            (json['orderId'] ??
+                    json['order_id'] ??
+                    (json['order'] is Map ? json['order']['id'] : 0))
+                .toString(),
+          ) ??
+          0,
       rating: int.tryParse(json['rating']?.toString() ?? '0') ?? 0,
       comment: json['comment'] ?? '',
+      status: (json['status'] ?? '').toString(),
       createdAt:
           DateTime.tryParse(rawCreatedAt?.toString() ?? '') ?? DateTime.now(),
       reviewerId:
@@ -738,43 +750,36 @@ class Transaction {
 }
 
 class HeatmapPoint {
-  final String city;
   final double latitude;
   final double longitude;
-  final double totalKg;
-  final int listingCount;
   final double normalizedWeight;
 
   HeatmapPoint({
-    required this.city,
     required this.latitude,
     required this.longitude,
-    required this.totalKg,
-    required this.listingCount,
     required this.normalizedWeight,
   });
 
   factory HeatmapPoint.fromJson(Map<String, dynamic> json) {
-    final normalizedRaw =
-        json['normalizedWeight'] ?? json['normalized_weight'] ?? 0.0;
-    final normalized =
-        double.tryParse(normalizedRaw.toString())?.clamp(0.0, 1.0) ?? 0.0;
+    final latitude =
+        double.tryParse((json['latitude'] ?? json['lat'] ?? '').toString()) ??
+        0.0;
+    final longitude =
+        double.tryParse((json['longitude'] ?? json['lng'] ?? '').toString()) ??
+        0.0;
+    final rawWeight =
+        json['weight_kg'] ??
+        json['weightKg'] ??
+        json['normalizedWeight'] ??
+        json['normalized_weight'] ??
+        0.0;
+    final weightKg = double.tryParse(rawWeight.toString()) ?? 0.0;
 
     return HeatmapPoint(
-      city: (json['city'] ?? '').toString(),
-      latitude: double.tryParse((json['latitude'] ?? 0).toString()) ?? 0.0,
-      longitude: double.tryParse((json['longitude'] ?? 0).toString()) ?? 0.0,
-      totalKg:
-          double.tryParse(
-            (json['totalKg'] ?? json['total_kg'] ?? 0).toString(),
-          ) ??
-          0.0,
-      listingCount:
-          int.tryParse(
-            (json['listingCount'] ?? json['listing_count'] ?? 0).toString(),
-          ) ??
-          0,
-      normalizedWeight: normalized,
+      latitude: latitude,
+      longitude: longitude,
+      // Legacy property name retained; value is now raw kilograms.
+      normalizedWeight: weightKg,
     );
   }
 }
@@ -815,6 +820,8 @@ class AppConfig {
   static String get baseHttpUrl => '$_scheme://$host:$_port';
   static String get baseAiUrl => '$_scheme://$host:$_aiPort';
   static String get chatWebSocketUrl => '$baseHttpUrl/ws';
+  static String get trackingWebSocketUrl =>
+      '${_scheme == 'https' ? 'wss' : 'ws'}://$host:$_port/ws/tracking/websocket';
 }
 
 String get api => '${AppConfig.baseHttpUrl}/api/v1/';

@@ -11,15 +11,18 @@ class SeasonRecommendationsPage extends StatefulWidget {
 }
 
 class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
-  final TextEditingController _regionController =
-      TextEditingController(text: 'Harare');
-  final TextEditingController _budgetController =
-      TextEditingController(text: '500');
-  final TextEditingController _rainfallController = TextEditingController();
-  final TextEditingController _temperatureController = TextEditingController();
-  final TextEditingController _monthController = TextEditingController();
-  final TextEditingController _topNController =
-      TextEditingController(text: '3');
+  final TextEditingController _regionController = TextEditingController(
+    text: 'Harare',
+  );
+  final TextEditingController _budgetController = TextEditingController(
+    text: '500',
+  );
+  final TextEditingController _seasonController = TextEditingController();
+  int? _selectedMonth;
+  final List<_MonthOption> _monthOptions = List.generate(
+    12,
+    (index) => _MonthOption(value: index + 1, label: _monthLabel(index + 1)),
+  );
 
   bool _loading = false;
   String? _errorMessage;
@@ -30,10 +33,7 @@ class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
   void dispose() {
     _regionController.dispose();
     _budgetController.dispose();
-    _rainfallController.dispose();
-    _temperatureController.dispose();
-    _monthController.dispose();
-    _topNController.dispose();
+    _seasonController.dispose();
     super.dispose();
   }
 
@@ -48,10 +48,8 @@ class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
       _showMessage('Enter a valid budget.');
       return;
     }
-    final rainfall = double.tryParse(_rainfallController.text.trim());
-    final temperature = double.tryParse(_temperatureController.text.trim());
-    final month = int.tryParse(_monthController.text.trim());
-    final topN = int.tryParse(_topNController.text.trim()) ?? 3;
+    final month = _selectedMonth;
+    final season = _seasonController.text.trim();
 
     setState(() {
       _loading = true;
@@ -63,13 +61,9 @@ class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
     try {
       final response = await AiService.prescriptiveRecommendations({
         'region': region,
-        'budget_usd': budget,
+        'season': season.isEmpty ? null : season,
         'month': month,
-        'top_n': topN,
-        'climate': {
-          'rainfall_mm': rainfall,
-          'temperature_c': temperature,
-        },
+        'budget_usd': budget,
       });
 
       final parsed = _parseRecommendations(response);
@@ -115,9 +109,9 @@ class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -138,10 +132,7 @@ class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
             _buildMessageCard(_errorMessage!, isError: true),
           if (!_loading && _recommendations.isNotEmpty) ...[
             if (_seasonLabel != null && _seasonLabel!.isNotEmpty)
-              _buildMessageCard(
-                'Season: ${_seasonLabel!}',
-                isError: false,
-              ),
+              _buildMessageCard('Season: ${_seasonLabel!}', isError: false),
             const SizedBox(height: 8),
             ..._recommendations.map(_buildRecommendationCard),
           ],
@@ -177,38 +168,29 @@ class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _rainfallController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Rainfall (mm)'),
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _selectedMonth,
+                    decoration: _inputDecoration('Planting Month'),
+                    items: _monthOptions
+                        .map(
+                          (option) => DropdownMenuItem<int>(
+                            value: option.value,
+                            child: Text(option.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedMonth = value;
+                      });
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
-                    controller: _temperatureController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Temperature (C)'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _monthController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Planting Month (1-12)'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _topNController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Number of results'),
+                    controller: _seasonController,
+                    decoration: _inputDecoration('Season (optional)'),
                   ),
                 ),
               ],
@@ -374,6 +356,34 @@ class _SeasonRecommendationsPageState extends State<SeasonRecommendationsPage> {
       contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
     );
   }
+
+  static String _monthLabel(int month) {
+    const labels = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (month < 1 || month > labels.length) {
+      return 'Month';
+    }
+    return labels[month - 1];
+  }
+}
+
+class _MonthOption {
+  final int value;
+  final String label;
+
+  const _MonthOption({required this.value, required this.label});
 }
 
 class _Recommendation {
@@ -416,8 +426,9 @@ class _Recommendation {
       commodity: json['commodity']?.toString() ?? 'Unknown',
       score: double.tryParse(json['score']?.toString() ?? '') ?? 0,
       climateFit: why['climate_fit'] == true,
-      estimatedCostUsd:
-          double.tryParse(why['estimated_cost_usd_per_ha']?.toString() ?? ''),
+      estimatedCostUsd: double.tryParse(
+        why['estimated_cost_usd_per_ha']?.toString() ?? '',
+      ),
       plantingMonths: months,
       marketTargets: markets,
     );
@@ -430,8 +441,7 @@ class _MarketTarget {
 
   _MarketTarget({required this.name, required this.avgPrice});
 
-  String get priceText =>
-      avgPrice == null ? '-' : avgPrice!.toStringAsFixed(2);
+  String get priceText => avgPrice == null ? '-' : avgPrice!.toStringAsFixed(2);
 
   factory _MarketTarget.fromJson(Map<String, dynamic> json) {
     return _MarketTarget(

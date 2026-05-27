@@ -150,7 +150,7 @@ class _AiForecastPageState extends State<AiForecastPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Demand Forecast',
+              'Price Forecast',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
@@ -165,7 +165,7 @@ class _AiForecastPageState extends State<AiForecastPage> {
                   child: TextField(
                     controller: _periodsController,
                     keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Periods', hint: 'e.g. 30'),
+                    decoration: _inputDecoration('Periods (Months)', hint: 'e.g. 30'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -219,8 +219,8 @@ class _AiForecastPageState extends State<AiForecastPage> {
           children: [
             Expanded(
               child: _metricTile(
-                label: 'Average Demand',
-                value: avg.toStringAsFixed(1),
+                label: 'Average Price',
+                value: '\$${avg.toStringAsFixed(4)}/kg',
               ),
             ),
             Container(width: 1, height: 36, color: Colors.grey[300]),
@@ -303,7 +303,7 @@ class _AiForecastPageState extends State<AiForecastPage> {
                   children: [
                     Text(point.date),
                     Text(
-                      point.value.toStringAsFixed(1),
+                      '\$${point.value.toStringAsFixed(4)}/kg',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Color(primaryColour),

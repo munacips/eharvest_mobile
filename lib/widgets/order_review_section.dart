@@ -1,5 +1,6 @@
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
+import 'package:eharvest_mobile/widgets/pending_review_sheet.dart';
 import 'package:eharvest_mobile/widgets/review_form.dart';
 import 'package:flutter/material.dart';
 
@@ -27,6 +28,7 @@ class _OrderReviewSectionState extends State<OrderReviewSection> {
   bool _loading = true;
   String? _errorMessage;
   Set<int> _reviewedRevieweeIds = <int>{};
+  Map<int, Review> _pendingReviewsByRevieweeId = <int, Review>{};
 
   @override
   void initState() {
@@ -67,12 +69,25 @@ class _OrderReviewSectionState extends State<OrderReviewSection> {
       final reviews = await ReviewService.fetchReviewsByReviewer(
         widget.currentUserId!,
       );
+      final completedRevieweeIds = <int>{};
+      final pendingByRevieweeId = <int, Review>{};
+      for (final review in reviews) {
+        final revieweeId = review.revieweeId;
+        if (revieweeId <= 0) {
+          continue;
+        }
+        if (review.status.trim().toUpperCase() == 'PENDING') {
+          if (review.orderId == widget.order.id) {
+            pendingByRevieweeId[revieweeId] = review;
+          }
+          continue;
+        }
+        completedRevieweeIds.add(revieweeId);
+      }
       if (!mounted) return;
       setState(() {
-        _reviewedRevieweeIds = reviews
-            .map((review) => review.revieweeId)
-            .where((id) => id > 0)
-            .toSet();
+        _reviewedRevieweeIds = completedRevieweeIds;
+        _pendingReviewsByRevieweeId = pendingByRevieweeId;
         _loading = false;
       });
     } on ReviewApiException catch (e) {
@@ -250,6 +265,7 @@ class _OrderReviewSectionState extends State<OrderReviewSection> {
 
   Widget _buildTargetCard(_ReviewTarget target) {
     final alreadyReviewed = _reviewedRevieweeIds.contains(target.revieweeId);
+    final pendingReview = _pendingReviewsByRevieweeId[target.revieweeId];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -286,22 +302,30 @@ class _OrderReviewSectionState extends State<OrderReviewSection> {
                   labelStyle: const TextStyle(fontWeight: FontWeight.w600),
                 )
               : FilledButton(
-                  onPressed: () => _openReviewForm(target),
-                  child: const Text('Leave Review'),
+                  onPressed: () => _openReviewForm(target, pendingReview),
+                  child: Text(
+                    pendingReview != null ? 'Complete Review' : 'Leave Review',
+                  ),
                 ),
         ],
       ),
     );
   }
 
-  Future<void> _openReviewForm(_ReviewTarget target) async {
+  Future<void> _openReviewForm(
+    _ReviewTarget target,
+    Review? pendingReview,
+  ) async {
     if (widget.currentUserId == null) return;
 
-    await showModalBottomSheet<void>(
+    final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        if (pendingReview != null) {
+          return PendingReviewSheet(review: pendingReview);
+        }
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -329,6 +353,16 @@ class _OrderReviewSectionState extends State<OrderReviewSection> {
         );
       },
     );
+    if (submitted == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review submitted successfully.')),
+      );
+    }
+    if (submitted != true) {
+      return;
+    }
+    await _loadExistingReviews();
+    widget.onReviewCreated();
   }
 
   String _formatRole(String role) {

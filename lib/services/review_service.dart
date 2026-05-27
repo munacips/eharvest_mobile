@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +16,8 @@ class ReviewApiException implements Exception {
 }
 
 class ReviewService {
+  static final ValueNotifier<int> pendingReviewCount = ValueNotifier<int>(0);
+
   static Future<Review> createReview({
     required int reviewerId,
     required int revieweeId,
@@ -66,6 +69,27 @@ class ReviewService {
     return _decodeReviewList(response, 'load received reviews');
   }
 
+  static Future<List<Review>> getPendingReviewsForCurrentUser() async {
+    final reviewerId = await AuthService.getUserId();
+    if (reviewerId == null || reviewerId <= 0) {
+      throw const ReviewApiException(
+        401,
+        'Authentication error. Please log in again.',
+      );
+    }
+
+    final response = await http.get(
+      Uri.parse('${api}reviews/pending/reviewer/$reviewerId'),
+      headers: await _headers(),
+    );
+
+    final reviews = _decodeReviewList(response, 'load pending reviews')
+        .where((review) => review.status.trim().toUpperCase() == 'PENDING')
+        .toList();
+    pendingReviewCount.value = reviews.length;
+    return reviews;
+  }
+
   static Future<Review> updateReview(
     int id, {
     int? rating,
@@ -81,6 +105,43 @@ class ReviewService {
       body: jsonEncode(payload),
     );
     return _decodeReview(response, 'update review');
+  }
+
+  static Future<Review> submitPendingReview({
+    required int reviewId,
+    required int rating,
+    required String comment,
+  }) async {
+    if (rating < 1 || rating > 5) {
+      throw const ReviewApiException(
+        400,
+        'Please select a rating between 1 and 5 stars.',
+      );
+    }
+
+    final review = await updateReview(
+      reviewId,
+      rating: rating,
+      comment: comment,
+    );
+    await refreshPendingReviewCount();
+    return review;
+  }
+
+  static Future<int> refreshPendingReviewCount() async {
+    try {
+      final reviews = await getPendingReviewsForCurrentUser();
+      pendingReviewCount.value = reviews.length;
+      return reviews.length;
+    } on ReviewApiException catch (error) {
+      if (error.statusCode == 401) {
+        pendingReviewCount.value = 0;
+      }
+      rethrow;
+    } catch (_) {
+      pendingReviewCount.value = 0;
+      rethrow;
+    }
   }
 
   static Future<void> deleteReview(int id) async {

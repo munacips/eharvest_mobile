@@ -11,18 +11,13 @@ class DemandSupplyForecastPage extends StatefulWidget {
 }
 
 class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
-  final TextEditingController _regionController =
-      TextEditingController(text: 'Harare');
-  final TextEditingController _periodsController =
-      TextEditingController(text: '6');
-  final TextEditingController _supplyMultiplierController =
-      TextEditingController(text: '1.05');
-  final TextEditingController _latitudeController = TextEditingController();
-  final TextEditingController _longitudeController = TextEditingController();
-  bool _autoFetch = false;
-
+  final TextEditingController _regionController = TextEditingController(
+    text: 'Harare',
+  );
+  final TextEditingController _periodsController = TextEditingController(
+    text: '6',
+  );
   final List<_EntryForm> _salesEntries = [];
-  final List<_EntryForm> _supplyEntries = [];
 
   bool _loading = false;
   String? _errorMessage;
@@ -38,13 +33,7 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
   void dispose() {
     _regionController.dispose();
     _periodsController.dispose();
-    _supplyMultiplierController.dispose();
-    _latitudeController.dispose();
-    _longitudeController.dispose();
     for (final entry in _salesEntries) {
-      entry.dispose();
-    }
-    for (final entry in _supplyEntries) {
       entry.dispose();
     }
     super.dispose();
@@ -56,23 +45,10 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
     });
   }
 
-  void _addSupplyEntry() {
-    setState(() {
-      _supplyEntries.add(_EntryForm());
-    });
-  }
-
   void _removeSalesEntry(int index) {
     setState(() {
       _salesEntries[index].dispose();
       _salesEntries.removeAt(index);
-    });
-  }
-
-  void _removeSupplyEntry(int index) {
-    setState(() {
-      _supplyEntries[index].dispose();
-      _supplyEntries.removeAt(index);
     });
   }
 
@@ -83,17 +59,11 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
       return;
     }
     final periods = int.tryParse(_periodsController.text.trim()) ?? 6;
-    final supplyMultiplier =
-        double.tryParse(_supplyMultiplierController.text.trim()) ?? 1.05;
-    final latitude = double.tryParse(_latitudeController.text.trim());
-    final longitude = double.tryParse(_longitudeController.text.trim());
-
-    final salesPayload = _buildEntries(_salesEntries, region);
-    if (salesPayload.isEmpty) {
-      _showMessage('Add at least one sales entry.');
+    final commodities = _buildCommodityList(_salesEntries);
+    if (commodities.isEmpty) {
+      _showMessage('Add at least one commodity.');
       return;
     }
-    final supplyPayload = _buildEntries(_supplyEntries, region);
 
     setState(() {
       _loading = true;
@@ -105,12 +75,7 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
       final response = await AiService.demandSupplyForecast({
         'region': region,
         'periods': periods,
-        'historical_sales': salesPayload,
-        if (supplyPayload.isNotEmpty) 'historical_supply': supplyPayload,
-        'supply_multiplier': supplyMultiplier,
-        'auto_fetch_external': _autoFetch,
-        if (_autoFetch && latitude != null) 'latitude': latitude,
-        if (_autoFetch && longitude != null) 'longitude': longitude,
+        'commodities': commodities,
       });
       final parsed = _parseForecastSeries(response);
       if (parsed.isEmpty) {
@@ -132,27 +97,15 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
     }
   }
 
-  List<Map<String, dynamic>> _buildEntries(
-    List<_EntryForm> entries,
-    String region,
-  ) {
-    final payload = <Map<String, dynamic>>[];
+  List<String> _buildCommodityList(List<_EntryForm> entries) {
+    final commodities = <String>{};
     for (final entry in entries) {
-      final date = entry.dateController.text.trim();
       final commodity = entry.commodityController.text.trim();
-      final quantity =
-          double.tryParse(entry.quantityController.text.trim()) ?? 0.0;
-      if (date.isEmpty || commodity.isEmpty || quantity <= 0) {
-        continue;
+      if (commodity.isNotEmpty) {
+        commodities.add(commodity);
       }
-      payload.add({
-        'date': date,
-        'commodity': commodity,
-        'quantity': quantity,
-        'region': region,
-      });
     }
-    return payload;
+    return commodities.toList();
   }
 
   List<_DemandSupplySeries> _parseForecastSeries(dynamic response) {
@@ -175,9 +128,9 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -229,66 +182,17 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
                   child: TextField(
                     controller: _periodsController,
                     keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Periods'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _supplyMultiplierController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDecoration('Supply Multiplier'),
+                    decoration: _inputDecoration('Periods (Months)'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _autoFetch,
-              onChanged: (value) {
-                setState(() {
-                  _autoFetch = value;
-                });
-              },
-              title: const Text('Use live weather & market data'),
-              activeThumbColor: Color(primaryColour),
-            ),
-            if (_autoFetch) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _latitudeController,
-                      keyboardType: TextInputType.number,
-                      decoration: _inputDecoration('Latitude'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _longitudeController,
-                      keyboardType: TextInputType.number,
-                      decoration: _inputDecoration('Longitude'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
             const SizedBox(height: 16),
-            _buildEntrySection(
-              title: 'Historical Sales',
+            _buildCommoditySection(
+              title: 'Commodities',
               entries: _salesEntries,
               onAdd: _addSalesEntry,
               onRemove: _removeSalesEntry,
-            ),
-            const SizedBox(height: 16),
-            _buildEntrySection(
-              title: 'Historical Supply (optional)',
-              entries: _supplyEntries,
-              onAdd: _addSupplyEntry,
-              onRemove: _removeSupplyEntry,
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -317,7 +221,7 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
     );
   }
 
-  Widget _buildEntrySection({
+  Widget _buildCommoditySection({
     required String title,
     required List<_EntryForm> entries,
     required VoidCallback onAdd,
@@ -347,41 +251,24 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
           final form = entry.value;
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
                   TextField(
-                    controller: form.dateController,
-                    decoration: _inputDecoration('Date (YYYY-MM-DD)'),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: form.commodityController,
-                          decoration: _inputDecoration('Commodity'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: form.quantityController,
-                          keyboardType: TextInputType.number,
-                          decoration: _inputDecoration('Quantity'),
-                        ),
-                      ),
-                    ],
+                    controller: form.commodityController,
+                    decoration: _inputDecoration('Commodity'),
                   ),
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed:
-                          entries.length > 1 ? () => onRemove(index) : null,
+                      onPressed: entries.length > 1
+                          ? () => onRemove(index)
+                          : null,
                       child: const Text('Remove'),
                     ),
                   ),
@@ -415,6 +302,10 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
                 painter: _DualLineChartPainter(
                   series.demandValues,
                   series.supplyValues,
+                  List.generate(
+                    series.demandValues.length,
+                    (index) => 'M${index + 1}',
+                  ),
                 ),
               ),
             ),
@@ -483,14 +374,10 @@ class _DemandSupplyForecastPageState extends State<DemandSupplyForecastPage> {
 }
 
 class _EntryForm {
-  final TextEditingController dateController = TextEditingController();
   final TextEditingController commodityController = TextEditingController();
-  final TextEditingController quantityController = TextEditingController();
 
   void dispose() {
-    dateController.dispose();
     commodityController.dispose();
-    quantityController.dispose();
   }
 }
 
@@ -517,7 +404,9 @@ class _DemandSupplySeries {
     return _DemandSupplySeries(
       commodity: json['commodity']?.toString() ?? 'Commodity',
       demandValues: demand,
-      supplyValues: supply.isEmpty ? List<double>.filled(demand.length, 0) : supply,
+      supplyValues: supply.isEmpty
+          ? List<double>.filled(demand.length, 0)
+          : supply,
     );
   }
 }
@@ -525,30 +414,92 @@ class _DemandSupplySeries {
 class _DualLineChartPainter extends CustomPainter {
   final List<double> demand;
   final List<double> supply;
+  final List<String> xLabels;
 
-  _DualLineChartPainter(this.demand, this.supply);
+  _DualLineChartPainter(this.demand, this.supply, this.xLabels);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (demand.length < 2) {
       return;
     }
+    const leftPadding = 40.0;
+    const bottomPadding = 24.0;
+    const topPadding = 8.0;
+    const rightPadding = 12.0;
+
+    final plotWidth = size.width - leftPadding - rightPadding;
+    final plotHeight = size.height - topPadding - bottomPadding;
+    final origin = Offset(leftPadding, topPadding);
+
     final allValues = [...demand, ...supply];
     final minVal = allValues.reduce((a, b) => a < b ? a : b);
     final maxVal = allValues.reduce((a, b) => a > b ? a : b);
     final span = (maxVal - minVal) == 0 ? 1 : (maxVal - minVal);
 
-    final dx = size.width / (demand.length - 1);
+    final dx = plotWidth / (demand.length - 1);
     final demandPoints = <Offset>[];
     final supplyPoints = <Offset>[];
 
     for (var i = 0; i < demand.length; i++) {
-      final demandY = size.height - ((demand[i] - minVal) / span) * size.height;
-      demandPoints.add(Offset(dx * i, demandY));
+      final demandY =
+          plotHeight - ((demand[i] - minVal) / span) * plotHeight + origin.dy;
+      demandPoints.add(Offset(origin.dx + dx * i, demandY));
     }
     for (var i = 0; i < supply.length; i++) {
-      final supplyY = size.height - ((supply[i] - minVal) / span) * size.height;
-      supplyPoints.add(Offset(dx * i, supplyY));
+      final supplyY =
+          plotHeight - ((supply[i] - minVal) / span) * plotHeight + origin.dy;
+      supplyPoints.add(Offset(origin.dx + dx * i, supplyY));
+    }
+
+    final axisPaint = Paint()
+      ..color = Colors.grey.shade400
+      ..strokeWidth = 1;
+
+    canvas.drawLine(
+      Offset(origin.dx, origin.dy),
+      Offset(origin.dx, origin.dy + plotHeight),
+      axisPaint,
+    );
+    canvas.drawLine(
+      Offset(origin.dx, origin.dy + plotHeight),
+      Offset(origin.dx + plotWidth, origin.dy + plotHeight),
+      axisPaint,
+    );
+
+    const yTicks = 4;
+    for (var i = 0; i <= yTicks; i++) {
+      final t = i / yTicks;
+      final y = origin.dy + plotHeight - t * plotHeight;
+      final value = minVal + t * span;
+      canvas.drawLine(
+        Offset(origin.dx - 4, y),
+        Offset(origin.dx, y),
+        axisPaint,
+      );
+      _paintAxisLabel(
+        canvas,
+        size,
+        value.toStringAsFixed(0),
+        Offset(0, y - 6),
+        align: TextAlign.right,
+      );
+    }
+
+    final labelCount = xLabels.length;
+    for (var i = 0; i < labelCount; i++) {
+      final x = origin.dx + dx * i;
+      canvas.drawLine(
+        Offset(x, origin.dy + plotHeight),
+        Offset(x, origin.dy + plotHeight + 4),
+        axisPaint,
+      );
+      _paintAxisLabel(
+        canvas,
+        size,
+        xLabels[i],
+        Offset(x - 10, origin.dy + plotHeight + 6),
+      );
     }
 
     final demandPaint = Paint()
@@ -560,7 +511,8 @@ class _DualLineChartPainter extends CustomPainter {
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
-    final demandPath = Path()..moveTo(demandPoints.first.dx, demandPoints.first.dy);
+    final demandPath = Path()
+      ..moveTo(demandPoints.first.dx, demandPoints.first.dy);
     for (var i = 1; i < demandPoints.length; i++) {
       demandPath.lineTo(demandPoints[i].dx, demandPoints[i].dy);
     }
@@ -568,7 +520,8 @@ class _DualLineChartPainter extends CustomPainter {
     canvas.drawPath(demandPath, demandPaint);
 
     if (supplyPoints.length >= 2) {
-      final supplyPath = Path()..moveTo(supplyPoints.first.dx, supplyPoints.first.dy);
+      final supplyPath = Path()
+        ..moveTo(supplyPoints.first.dx, supplyPoints.first.dy);
       for (var i = 1; i < supplyPoints.length; i++) {
         supplyPath.lineTo(supplyPoints[i].dx, supplyPoints[i].dy);
       }
@@ -578,6 +531,26 @@ class _DualLineChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DualLineChartPainter oldDelegate) {
-    return oldDelegate.demand != demand || oldDelegate.supply != supply;
+    return oldDelegate.demand != demand ||
+        oldDelegate.supply != supply ||
+        oldDelegate.xLabels != xLabels;
+  }
+
+  void _paintAxisLabel(
+    Canvas canvas,
+    Size size,
+    String text,
+    Offset offset, {
+    TextAlign align = TextAlign.left,
+  }) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(fontSize: 10, color: Colors.black54),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: align,
+    )..layout(maxWidth: size.width);
+    textPainter.paint(canvas, offset);
   }
 }

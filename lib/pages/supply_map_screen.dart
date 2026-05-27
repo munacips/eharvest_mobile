@@ -17,10 +17,36 @@ class SupplyMapScreen extends StatefulWidget {
 class _SupplyMapScreenState extends State<SupplyMapScreen> {
   static const List<String> _defaultCrops = <String>[
     'Maize',
+    'Sorghum',
+    'Millet',
+    'Finger Millet',
+    'Wheat',
+    'Barley',
+    'Rice',
+    'Soya Beans',
+    'Groundnuts',
+    'Sugar Beans',
+    'Cowpeas',
+    'Bambara Nuts',
+    'Sunflower',
+    'Cotton',
+    'Tobacco',
+    'Sugarcane',
     'Carrots',
     'Tomatoes',
-    'Wheat',
-    'Soya Beans',
+    'Onions',
+    'Potatoes',
+    'Sweet Potatoes',
+    'Cabbage',
+    'Leafy Vegetables',
+    'Butternut',
+    'Pumpkin',
+    'Paprika',
+    'Chillies',
+    'Bananas',
+    'Oranges',
+    'Avocados',
+    'Mangoes',
   ];
 
   static const LatLng _zimbabweCenter = LatLng(-19.0154, 29.1549);
@@ -82,40 +108,66 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
         children: [
           Container(
             color: theme.colorScheme.surface,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: _defaultCrops.map((crop) {
-                  final selected = crop == _selectedCrop;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(crop),
-                      selected: selected,
-                      onSelected: (value) {
-                        if (!value || selected) {
-                          return;
-                        }
-                        setState(() {
-                          _selectedCrop = crop;
-                        });
-                        _loadHeatmap();
-                      },
-                      selectedColor: theme.colorScheme.primary,
-                      backgroundColor:
-                          theme.colorScheme.surfaceContainerHighest,
-                      labelStyle: TextStyle(
-                        color: selected
-                            ? theme.colorScheme.onPrimary
-                            : theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: DropdownButtonFormField<String>(
+              initialValue: _selectedCrop,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Select Crop',
+                labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.primary,
+                    width: 1.4,
+                  ),
+                ),
+              ),
+              dropdownColor: theme.colorScheme.surface,
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              items: _defaultCrops
+                  .map(
+                    (crop) => DropdownMenuItem<String>(
+                      value: crop,
+                      child: Text(
+                        crop,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: theme.colorScheme.onSurface),
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null || value == _selectedCrop) {
+                  return;
+                }
+
+                setState(() {
+                  _selectedCrop = value;
+                });
+                _loadHeatmap();
+              },
             ),
           ),
           Expanded(
@@ -134,7 +186,6 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
                       retinaMode: MediaQuery.of(context).devicePixelRatio > 1.0,
                     ),
                     _HeatmapLayer(points: _points),
-                    MarkerLayer(markers: _buildCityMarkers()),
                   ],
                 ),
                 Positioned(
@@ -198,32 +249,6 @@ class _SupplyMapScreenState extends State<SupplyMapScreen> {
       ),
     );
   }
-
-  List<Marker> _buildCityMarkers() {
-    return _points
-        .map(
-          (point) => Marker(
-            point: LatLng(point.latitude, point.longitude),
-            width: 120,
-            height: 22,
-            alignment: Alignment.topCenter,
-            child: IgnorePointer(
-              child: Text(
-                point.city,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  shadows: [Shadow(color: Colors.black, blurRadius: 6)],
-                ),
-              ),
-            ),
-          ),
-        )
-        .toList();
-  }
 }
 
 class _HeatmapLayer extends StatelessWidget {
@@ -258,13 +283,27 @@ class _HeatmapPainter extends CustomPainter {
       return;
     }
 
+    final maxWeight = points
+        .map((point) => point.normalizedWeight)
+        .fold<double>(0.0, math.max);
+    if (maxWeight <= 0.0) {
+      return;
+    }
+
     for (final point in points) {
       final center = camera.getOffsetFromOrigin(
         LatLng(point.latitude, point.longitude),
       );
+      final intensity = _logarithmicIntensity(
+        currentWeight: point.normalizedWeight,
+        maxWeight: maxWeight,
+      );
+      if (intensity <= 0.0) {
+        continue;
+      }
 
       final radius = _scaledRadius(
-        normalizedWeight: point.normalizedWeight,
+        intensity: intensity,
         zoom: camera.zoom,
       );
 
@@ -275,43 +314,58 @@ class _HeatmapPainter extends CustomPainter {
         continue;
       }
 
-      final color = _heatColor(point.normalizedWeight);
+      final color = _heatColor(intensity);
       final shader = ui.Gradient.radial(
         center,
         radius,
-        [color, Colors.transparent],
-        const [0.0, 1.0],
+        <Color>[
+          color.withOpacity(0.85),
+          color.withOpacity(0.45),
+          color.withOpacity(0.10),
+          Colors.transparent,
+        ],
+        const <double>[0.0, 0.35, 0.75, 1.0],
       );
 
       final paint = Paint()
-        ..blendMode = BlendMode.screen
+        ..blendMode = BlendMode.plus
         ..shader = shader;
 
       canvas.drawCircle(center, radius, paint);
     }
   }
 
-  double _scaledRadius({
-    required double normalizedWeight,
-    required double zoom,
+  double _logarithmicIntensity({
+    required double currentWeight,
+    required double maxWeight,
   }) {
-    final weight = normalizedWeight.clamp(0.0, 1.0);
-    final zoomScale = math
-        .pow(2.0, (zoom - 6.5) / 3.0)
-        .toDouble()
-        .clamp(0.6, 2.4);
-    final baseRadius = 12 + (weight * 44);
+    if (currentWeight <= 0.0 || maxWeight <= 0.0) {
+      return 0.0;
+    }
+
+    return (math.log(currentWeight + 1) / math.log(maxWeight + 1)).clamp(
+      0.0,
+      1.0,
+    );
+  }
+
+  double _scaledRadius({required double intensity, required double zoom}) {
+    final zoomScale = math.pow(2.0, (zoom - 6.5) / 2.4).toDouble().clamp(
+      0.45,
+      4.0,
+    );
+    final baseRadius = 28.0 + (intensity * 34.0);
     return baseRadius * zoomScale;
   }
 
-  Color _heatColor(double normalizedWeight) {
-    final weight = normalizedWeight.clamp(0.0, 1.0);
-    if (weight <= 0.0) {
+  Color _heatColor(double intensity) {
+    final clampedIntensity = intensity.clamp(0.0, 1.0);
+    if (clampedIntensity <= 0.0) {
       return Colors.transparent;
     }
 
-    final hue = (1.0 - weight) * 120.0;
-    final hsv = HSVColor.fromAHSV(0.70, hue, 1.0, 1.0);
+    final hue = (1.0 - clampedIntensity) * 120.0;
+    final hsv = HSVColor.fromAHSV(1.0, hue, 0.95, 1.0);
     return hsv.toColor();
   }
 
@@ -356,9 +410,9 @@ class _HeatLegend extends StatelessWidget {
                 borderRadius: BorderRadius.circular(99),
                 gradient: const LinearGradient(
                   colors: [
-                    Colors.transparent,
                     Colors.green,
                     Colors.yellow,
+                    Colors.orange,
                     Colors.red,
                   ],
                 ),
@@ -371,19 +425,24 @@ class _HeatLegend extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'None',
+                    'Lower',
                     style: TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                   Text(
-                    'Low',
+                    'Log Scale',
                     style: TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                   Text(
-                    'High',
+                    'Higher',
                     style: TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Colors reflect raw kg using local logarithmic scaling.',
+              style: TextStyle(color: Colors.white60, fontSize: 9),
             ),
           ],
         ),

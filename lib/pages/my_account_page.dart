@@ -7,11 +7,14 @@ import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/pages/logistics_list.dart';
 import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:eharvest_mobile/pages/my_orders_page.dart';
+import 'package:eharvest_mobile/pages/pending_reviews_page.dart';
 import 'package:eharvest_mobile/services/order_service.dart';
 import 'package:eharvest_mobile/services/payment_redirect_stub.dart'
     if (dart.library.html) 'package:eharvest_mobile/services/payment_redirect_web.dart';
 import 'package:eharvest_mobile/services/payment_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
+import 'package:eharvest_mobile/services/review_service.dart';
+import 'package:eharvest_mobile/widgets/count_badge.dart';
 import 'package:eharvest_mobile/widgets/reviews_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -99,6 +102,7 @@ class MyAccountPageState extends State<MyAccountPage> {
       final userId = await AuthService.getUserId();
       final role = await AuthService.getRole();
       if (token == null || userId == null || role == null || role.isEmpty) {
+        ReviewService.pendingReviewCount.value = 0;
         setState(() {
           errorMessage = 'Authentication error. Please log in again.';
           isLoading = false;
@@ -232,6 +236,9 @@ class MyAccountPageState extends State<MyAccountPage> {
           _presentDeliveries = [];
           _pastDeliveries = [];
         }
+        try {
+          await ReviewService.refreshPendingReviewCount();
+        } catch (_) {}
         setState(() {
           isLoading = false;
         });
@@ -816,6 +823,8 @@ class MyAccountPageState extends State<MyAccountPage> {
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
+                        _buildPendingReviewsCard(),
+                        const SizedBox(height: 16),
                         _buildTrustCard(),
                         const SizedBox(height: 16),
                         if (_currentUserId != null) ...[
@@ -911,6 +920,81 @@ class MyAccountPageState extends State<MyAccountPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPendingReviewsCard() {
+    return ValueListenableBuilder<int>(
+      valueListenable: ReviewService.pendingReviewCount,
+      builder: (context, pendingCount, _) {
+        return GestureDetector(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PendingReviewsPage()),
+            );
+            fetchUserData();
+          },
+          child: Card(
+            color: Colors.amber[50],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.rate_review_outlined,
+                      color: Colors.amber,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Pending Reviews',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          pendingCount > 0
+                              ? 'You have $pendingCount review${pendingCount == 1 ? '' : 's'} to complete.'
+                              : 'All caught up on your delivered-order reviews.',
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    children: [
+                      CountBadge(
+                        count: pendingCount,
+                        backgroundColor: Colors.amber.shade700,
+                      ),
+                      const SizedBox(height: 8),
+                      const Icon(Icons.chevron_right, color: Colors.black54),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

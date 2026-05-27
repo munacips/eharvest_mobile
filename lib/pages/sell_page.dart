@@ -16,6 +16,59 @@ class SellPage extends StatefulWidget {
 
 class SellPageState extends State<SellPage> {
   final _formKey = GlobalKey<FormState>();
+  static const String _otherCategory = 'Other';
+
+  static const Map<String, String> _commodityCategoryMap = {
+    'maize': 'Cereals and Tubers',
+    'maize meal': 'Cereals and Tubers',
+    'rice': 'Cereals and Tubers',
+    'sorghum': 'Cereals and Tubers',
+    'millet (finger millet)': 'Cereals and Tubers',
+    'millet' : 'Cereals and Tubers',
+    'wheat': 'Cereals and Tubers',
+    'barley': 'Cereals and Tubers',
+    'beans (sugar)': 'Pulses and Legumes',
+    'beans (round)': 'Pulses and Legumes',
+    'beans' : 'Pulses and Legumes',
+    'groundnuts (shelled)': 'Pulses and Legumes',
+    'groundnuts': 'Pulses and Legumes',
+    'nuts' : 'Pulses and Legumes',
+    'soybeans': 'Pulses and Legumes',
+    'cowpeas': 'Pulses and Legumes',
+    'pigeon peas': 'Pulses and Legumes',
+    'tomatoes': 'Vegetables',
+    'onions': 'Vegetables',
+    'carrots': 'Vegetables',
+    'cabbages': 'Vegetables',
+    'spinach (rape)': 'Vegetables',
+    'spinach' : 'Vegetables',
+    'rape' : 'Vegetables',
+    'sweet potatoes': 'Vegetables',
+    'irish potatoes': 'Vegetables',
+    'potatoes' : 'Vegetables',
+    'butternuts': 'Vegetables',
+    'pumpkin': 'Vegetables',
+    'green pepper': 'Vegetables',
+    'garlic': 'Vegetables',
+    'okra (derere)': 'Vegetables',
+    'okra' : 'Vegetables',
+    'cucumber': 'Vegetables',
+    'bananas': 'Fruits',
+    'mangoes': 'Fruits',
+    'avocados': 'Fruits',
+    'oranges': 'Fruits',
+    'oil (vegetable)': 'Oils and Fats',
+    'cooking oil (sunflower)': 'Oils and Fats',
+    'beef': 'Protein',
+    'fish (kapenta)': 'Protein',
+    'eggs (tray of 30)': 'Protein',
+    'chicken': 'Protein',
+    'salt': 'Misc',
+    'sugar': 'Misc',
+    'flour (wheat)': 'Misc',
+    'Tobacco' : 'Misc',
+  };
+
   bool _isSeller = false;
   bool _checkingAccess = true;
 
@@ -37,18 +90,21 @@ class SellPageState extends State<SellPage> {
     text: 'USD',
   );
 
-  String _selectedCategory = 'Vegetables';
+  String _selectedCategory = _otherCategory;
   String _selectedGrade = 'Grade A';
   DateTime _harvestDate = DateTime.now();
   DateTime _availableDate = DateTime.now();
   bool _canProvideTransport = false;
 
   final List<String> _categories = [
+    'Cereals and Tubers',
+    'Pulses and Legumes',
     'Vegetables',
     'Fruits',
-    'Grains',
-    'Spices',
-    'Tubers',
+    'Oils and Fats',
+    'Protein',
+    'Misc',
+    _otherCategory,
   ];
   final List<String> _grades = ['Grade A', 'Grade B', 'Grade C'];
   final List<String> _monthNames = const [
@@ -196,6 +252,11 @@ class SellPageState extends State<SellPage> {
                 _nameController,
                 "Produce Name (e.g. Carrots)",
                 Icons.eco,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = _resolveCategory(value);
+                  });
+                },
               ),
 
               const SizedBox(height: 15),
@@ -204,11 +265,9 @@ class SellPageState extends State<SellPage> {
               Row(
                 children: [
                   Expanded(
-                    child: _buildDropdown(
+                    child: _buildDisabledField(
                       "Category",
-                      _categories,
                       _selectedCategory,
-                      (val) => setState(() => _selectedCategory = val!),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -324,9 +383,11 @@ class SellPageState extends State<SellPage> {
     IconData icon, {
     bool isNumber = false,
     int maxLines = 1,
+    ValueChanged<String>? onChanged,
   }) {
     return TextFormField(
       controller: controller,
+      onChanged: onChanged,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
       maxLines: maxLines,
       decoration: InputDecoration(
@@ -338,16 +399,39 @@ class SellPageState extends State<SellPage> {
     );
   }
 
+  Widget _buildDisabledField(String label, String value) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.grey.shade200,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade400),
+        ),
+      ),
+      child: Text(value, style: TextStyle(color: Colors.grey[700])),
+    );
+  }
+
   Widget _buildDropdown(
     String label,
     List<String> items,
     String currentVal,
-    Function(String?) onChanged,
+    Function(String?)? onChanged, {
+    bool enabled = true,
+  }
   ) {
     return DropdownButtonFormField<String>(
       initialValue: currentVal,
+      onChanged: enabled ? onChanged : null,
+      iconDisabledColor: Colors.grey,
+      style: TextStyle(color: enabled ? Colors.black87 : Colors.grey[700]),
       decoration: InputDecoration(
         labelText: label,
+        filled: !enabled,
+        fillColor: enabled ? null : Colors.grey.shade200,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       items: items
@@ -358,8 +442,19 @@ class SellPageState extends State<SellPage> {
             ),
           )
           .toList(),
-      onChanged: onChanged,
     );
+  }
+
+  String _resolveCategory(String commodity) {
+    final normalizedCommodity = commodity.trim().toLowerCase();
+    if (normalizedCommodity.isEmpty) {
+      return _otherCategory;
+    }
+    return _commodityCategoryMap[normalizedCommodity] ?? _otherCategory;
+  }
+
+  String _categoryApiValue(String category) {
+    return category.trim().toLowerCase();
   }
 
   Widget _dateTile(String label, DateTime date, VoidCallback onTap) {
@@ -646,7 +741,7 @@ class SellPageState extends State<SellPage> {
       final payload = {
         'commodity': commodity,
         'market': _aiMarketController.text.trim(),
-        'category': _selectedCategory.toLowerCase(),
+        'category': _categoryApiValue(_selectedCategory),
         'unit': 'KG',
         'month': _selectedAiMonth,
         'latitude': double.tryParse(_aiLatitudeController.text.trim()) ?? 0.0,
@@ -712,7 +807,7 @@ class SellPageState extends State<SellPage> {
 
       final produceData = {
         'name': _nameController.text,
-        'category': _selectedCategory,
+        'category': _categoryApiValue(_selectedCategory),
         'description': _buildAutoDescription(),
         'qualityGrade': _selectedGrade,
         'quantity': double.parse(_quantityController.text),
@@ -765,7 +860,7 @@ class SellPageState extends State<SellPage> {
     _quantityController.clear();
     _priceController.clear();
     setState(() {
-      _selectedCategory = 'Vegetables';
+      _selectedCategory = _resolveCategory(_nameController.text);
       _selectedGrade = 'Grade A';
       _harvestDate = DateTime.now();
       _availableDate = DateTime.now();
