@@ -52,7 +52,8 @@ class NotificationService {
         await _flutterLocalNotificationsPlugin.initialize(initSettings);
       }
 
-      // Request notification permissions
+      // Request notification permissions (with timeout to avoid hanging
+      // when Firebase is unavailable, e.g. on emulators)
       final NotificationSettings settings = await _firebaseMessaging
           .requestPermission(
             alert: true,
@@ -62,13 +63,41 @@ class NotificationService {
             criticalAlert: false,
             provisional: false,
             sound: true,
+          )
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              print('Permission request timed out, skipping notifications');
+              return const NotificationSettings(
+                authorizationStatus: AuthorizationStatus.denied,
+                alert: AppleNotificationSetting.disabled,
+                announcement: AppleNotificationSetting.disabled,
+                badge: AppleNotificationSetting.disabled,
+                carPlay: AppleNotificationSetting.disabled,
+                criticalAlert: AppleNotificationSetting.disabled,
+                sound: AppleNotificationSetting.disabled,
+                lockScreen: AppleNotificationSetting.disabled,
+                notificationCenter: AppleNotificationSetting.disabled,
+                showPreviews: AppleShowPreviewSetting.never,
+                timeSensitive: AppleNotificationSetting.disabled,
+                providesAppNotificationSettings:
+                    AppleNotificationSetting.disabled,
+              );
+            },
           );
 
       // Only proceed with token registration if user granted permission
       if (settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional) {
-        // Get FCM token and register with backend
-        final String? token = await _firebaseMessaging.getToken();
+        // Get FCM token and register with backend (with timeout to avoid
+        // hanging when Firebase servers are unreachable)
+        final String? token = await _firebaseMessaging.getToken().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('FCM token fetch timed out, skipping token registration');
+            return null;
+          },
+        );
         if (token != null && token.isNotEmpty) {
           await _registerTokenWithBackend(token);
         }
@@ -166,6 +195,7 @@ class NotificationService {
             importance: Importance.max,
             priority: Priority.high,
             showWhen: true,
+            icon: '@drawable/ic_stat_notification',
           );
 
       const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(

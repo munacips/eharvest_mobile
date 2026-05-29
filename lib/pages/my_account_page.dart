@@ -8,6 +8,7 @@ import 'package:eharvest_mobile/pages/logistics_list.dart';
 import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:eharvest_mobile/pages/my_orders_page.dart';
 import 'package:eharvest_mobile/pages/pending_reviews_page.dart';
+import 'package:eharvest_mobile/pages/reports_page.dart';
 import 'package:eharvest_mobile/services/order_service.dart';
 import 'package:eharvest_mobile/services/payment_redirect_stub.dart'
     if (dart.library.html) 'package:eharvest_mobile/services/payment_redirect_web.dart';
@@ -825,6 +826,8 @@ class MyAccountPageState extends State<MyAccountPage> {
                       children: [
                         _buildPendingReviewsCard(),
                         const SizedBox(height: 16),
+                        _buildReportsCard(),
+                        const SizedBox(height: 16),
                         _buildTrustCard(),
                         const SizedBox(height: 16),
                         if (_currentUserId != null) ...[
@@ -995,6 +998,30 @@ class MyAccountPageState extends State<MyAccountPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildReportsCard() {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Color(primaryColour).withValues(alpha: 0.12),
+          child: Icon(Icons.assessment_outlined, color: Color(primaryColour)),
+        ),
+        title: const Text(
+          'Reports',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: const Text('View and generate reports available to you.'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ReportsPage()),
+          );
+        },
+      ),
     );
   }
 

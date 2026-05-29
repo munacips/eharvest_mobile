@@ -825,5 +825,6 @@ class AppConfig {
 }
 
 String get api => '${AppConfig.baseHttpUrl}/api/v1/';
+String get reportsApi => '${AppConfig.baseHttpUrl}/api/reports/';
 String get authApi => '${AppConfig.baseHttpUrl}/auth/';
 String get aiApi => AppConfig.baseAiUrl;

@@ -13,9 +13,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Pre-load SharedPreferences so platform plugins are registered early.
   await SharedPreferences.getInstance();
-  // Initialize Firebase Cloud Messaging and push notifications
-  await NotificationService.init();
   runApp(const MyApp());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future.delayed(const Duration(milliseconds: 300), () {
+      NotificationService.init();
+    });
+  });
 }
 
 class MyApp extends StatelessWidget {
