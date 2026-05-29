@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -13,10 +14,20 @@ class ReportService {
       throw Exception('Authentication error. Please log in again.');
     }
 
-    final response = await http.get(
-      Uri.parse('${reportsApi}available'),
-      headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
-    );
+    http.Response response;
+    try {
+      response = await http
+          .get(
+            Uri.parse('${reportsApi}available'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      throw Exception('Request timed out while loading reports.');
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_parseErrorMessage(response, 'Failed to load reports.'));
@@ -50,10 +61,20 @@ class ReportService {
       '${reportsApi}generate/$reportName',
     ).replace(queryParameters: queryParams.isEmpty ? null : queryParams);
 
-    final response = await http.get(
-      uri,
-      headers: {'Accept': 'application/pdf', 'Authorization': 'Bearer $token'},
-    );
+    http.Response response;
+    try {
+      response = await http
+          .get(
+            uri,
+            headers: {
+              'Accept': 'application/pdf',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      throw Exception('Request timed out while generating the report.');
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(

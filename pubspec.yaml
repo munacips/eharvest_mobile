@@ -35,6 +35,7 @@ flutter_launcher_icons:
   image_path: assets/icons/app_icon.png
   android: true
   ios: true
+  min_sdk_ios: 13.0
   web:
     generate: true
     image_path: assets/icons/app_icon.png
