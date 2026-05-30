@@ -20,7 +20,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./DockerFile
+          file: ./Dockerfile
           push: true
           tags: |
             munacips/eharvest_flutter:latest
