@@ -1,0 +1,17 @@
+.dart_tool/
+.git/
+.github/
+.idea/
+.vscode/
+build/
+coverage/
+
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+*.iml
+*.log
+*.pyc
+*.swp
+.DS_Store

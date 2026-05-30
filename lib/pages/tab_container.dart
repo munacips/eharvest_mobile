@@ -11,6 +11,7 @@ import 'package:eharvest_mobile/pages/subscriptions_page.dart';
 import 'package:eharvest_mobile/pages/chat_inbox_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
+import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 import 'package:eharvest_mobile/widgets/count_badge.dart';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
@@ -77,67 +78,55 @@ class _TabContainerState extends State<TabContainer> {
   bool get _canAccessBuy => _roleKey == 'buyer';
   bool get _canAccessSell => _roleKey == 'farmer';
 
-  List<({Widget page, BottomNavigationBarItem item})> _visibleTabs() {
-    return <({Widget page, BottomNavigationBarItem item})>[
+  List<({Widget page, Widget icon, String label})> _visibleTabs() {
+    return <({Widget page, Widget icon, String label})>[
       (
         page: const HomePage(),
-        item: const BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
-        ),
+        icon: const Icon(Icons.home),
+        label: 'Home',
       ),
       if (_canAccessBuy)
         (
           page: const BuyPage(),
-          item: const BottomNavigationBarItem(
-            icon: Icon(Icons.money),
-            label: 'Buy',
-          ),
+          icon: const Icon(Icons.money),
+          label: 'Buy',
         ),
       if (_canAccessSell)
         (
           page: const SellPage(),
-          item: const BottomNavigationBarItem(
-            icon: Icon(Icons.sell),
-            label: 'Sell',
-          ),
+          icon: const Icon(Icons.sell),
+          label: 'Sell',
         ),
       (
         page: const LogisticsPage(),
-        item: const BottomNavigationBarItem(
-          icon: Icon(Icons.local_shipping),
-          label: 'Logistics',
-        ),
+        icon: const Icon(Icons.local_shipping),
+        label: 'Logistics',
       ),
       (
         page: const ChatInboxPage(),
-        item: const BottomNavigationBarItem(
-          icon: Icon(Icons.chat_bubble_outline),
-          label: 'Chat',
-        ),
+        icon: const Icon(Icons.chat_bubble_outline),
+        label: 'Chat',
       ),
       (
         page: const MyAccountPage(),
-        item: BottomNavigationBarItem(
-          icon: ValueListenableBuilder<int>(
-            valueListenable: ReviewService.pendingReviewCount,
-            builder: (context, count, _) {
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.account_circle),
-                  if (count > 0)
-                    const Positioned(
-                      top: -6,
-                      right: -12,
-                      child: _MyAccountBadge(),
-                    ),
-                ],
-              );
-            },
-          ),
-          label: 'My Account',
+        icon: ValueListenableBuilder<int>(
+          valueListenable: ReviewService.pendingReviewCount,
+          builder: (context, count, _) {
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.account_circle),
+                if (count > 0)
+                  const Positioned(
+                    top: -6,
+                    right: -12,
+                    child: _MyAccountBadge(),
+                  ),
+              ],
+            );
+          },
         ),
+        label: 'My Account',
       ),
     ];
   }
@@ -169,132 +158,294 @@ class _TabContainerState extends State<TabContainer> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('eHarverst'),
-        backgroundColor: Color(primaryColour),
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Color(primaryColour)),
-              child: Text(
-                'eHarvest Menu',
-                style: TextStyle(color: Colors.white, fontSize: 24),
-              ),
+  void _openAiForecasts() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AiForecastPage()),
+    );
+  }
+
+  void _openDemandSupply() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DemandSupplyForecastPage()),
+    );
+  }
+
+  void _openRecommendations() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SeasonRecommendationsPage()),
+    );
+  }
+
+  void _openSupplyHeatmap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SupplyMapScreen()),
+    );
+  }
+
+  void _openSubscriptions() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SubscriptionsPage()),
+    );
+  }
+
+  Drawer _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: <Widget>[
+          const DrawerHeader(
+            decoration: BoxDecoration(color: Color(primaryColour)),
+            child: Text(
+              'eHarvest Menu',
+              style: TextStyle(color: Colors.white, fontSize: 24),
             ),
-            const ListTile(leading: Icon(Icons.home), title: Text('Home')),
-            ListTile(
-              leading: const Icon(Icons.insights),
-              title: const Text('Forecasts'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AiForecastPage()),
-                );
-              },
-            ),
-            // ListTile(
-            //   leading: const Icon(Icons.price_check),
-            //   title: const Text('Bulk Pricing'),
-            //   onTap: () {
-            //     Navigator.pop(context);
-            //     Navigator.push(
-            //       context,
-            //       MaterialPageRoute(builder: (_) => const BulkPricingPage()),
-            //     );
-            //   },
-            // ),
-            ListTile(
-              leading: const Icon(Icons.timeline),
-              title: const Text('Demand & Supply'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const DemandSupplyForecastPage(),
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.agriculture),
-              title: const Text('Recommendations'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SeasonRecommendationsPage(),
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.map),
-              title: const Text('Supply Heatmap'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SupplyMapScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.repeat),
-              title: const Text('Subscriptions'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SubscriptionsPage()),
-                );
-              },
-            ),
-            const ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('Settings'),
-            ),
-            ListTile(
-              title: const Text('Logout'),
-              leading: const Icon(Icons.logout),
-              onTap: () {
-                Navigator.pop(context);
-                _logout();
-              },
-            ),
-          ],
-        ),
-      ),
-      body: _buildCurrentPage(),
-      bottomNavigationBar: Builder(
-        builder: (context) {
-          final tabs = _visibleTabs();
-          final index = _currentIndex.clamp(0, tabs.length - 1);
-          return BottomNavigationBar(
-            currentIndex: index,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-              _refreshPendingReviewCount();
+          ),
+          const ListTile(leading: Icon(Icons.home), title: Text('Home')),
+          ListTile(
+            leading: const Icon(Icons.insights),
+            title: const Text('Forecasts'),
+            onTap: () {
+              Navigator.pop(context);
+              _openAiForecasts();
             },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: Color(primaryColour),
-            unselectedItemColor: Colors.grey,
-            items: tabs.map((tab) => tab.item).toList(),
-          );
-        },
+          ),
+          // ListTile(
+          //   leading: const Icon(Icons.price_check),
+          //   title: const Text('Bulk Pricing'),
+          //   onTap: () {
+          //     Navigator.pop(context);
+          //     Navigator.push(
+          //       context,
+          //       MaterialPageRoute(builder: (_) => const BulkPricingPage()),
+          //     );
+          //   },
+          // ),
+          ListTile(
+            leading: const Icon(Icons.timeline),
+            title: const Text('Demand & Supply'),
+            onTap: () {
+              Navigator.pop(context);
+              _openDemandSupply();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.agriculture),
+            title: const Text('Recommendations'),
+            onTap: () {
+              Navigator.pop(context);
+              _openRecommendations();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.map),
+            title: const Text('Supply Heatmap'),
+            onTap: () {
+              Navigator.pop(context);
+              _openSupplyHeatmap();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.repeat),
+            title: const Text('Subscriptions'),
+            onTap: () {
+              Navigator.pop(context);
+              _openSubscriptions();
+            },
+          ),
+          const ListTile(leading: Icon(Icons.settings), title: Text('Settings')),
+          ListTile(
+            title: const Text('Logout'),
+            leading: const Icon(Icons.logout),
+            onTap: () {
+              Navigator.pop(context);
+              _logout();
+            },
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildDesktopActions() {
+    return PopupMenuButton<_DesktopMenuAction>(
+      tooltip: 'More',
+      icon: const Icon(Icons.more_vert),
+      onSelected: (action) {
+        switch (action) {
+          case _DesktopMenuAction.forecasts:
+            _openAiForecasts();
+            break;
+          case _DesktopMenuAction.demandSupply:
+            _openDemandSupply();
+            break;
+          case _DesktopMenuAction.recommendations:
+            _openRecommendations();
+            break;
+          case _DesktopMenuAction.supplyHeatmap:
+            _openSupplyHeatmap();
+            break;
+          case _DesktopMenuAction.subscriptions:
+            _openSubscriptions();
+            break;
+          case _DesktopMenuAction.logout:
+            _logout();
+            break;
+        }
+      },
+      itemBuilder: (context) => <PopupMenuEntry<_DesktopMenuAction>>[
+        const PopupMenuItem<_DesktopMenuAction>(
+          value: _DesktopMenuAction.forecasts,
+          child: ListTile(
+            leading: Icon(Icons.insights),
+            title: Text('Forecasts'),
+          ),
+        ),
+        const PopupMenuItem<_DesktopMenuAction>(
+          value: _DesktopMenuAction.demandSupply,
+          child: ListTile(
+            leading: Icon(Icons.timeline),
+            title: Text('Demand & Supply'),
+          ),
+        ),
+        const PopupMenuItem<_DesktopMenuAction>(
+          value: _DesktopMenuAction.recommendations,
+          child: ListTile(
+            leading: Icon(Icons.agriculture),
+            title: Text('Recommendations'),
+          ),
+        ),
+        const PopupMenuItem<_DesktopMenuAction>(
+          value: _DesktopMenuAction.supplyHeatmap,
+          child: ListTile(
+            leading: Icon(Icons.map),
+            title: Text('Supply Heatmap'),
+          ),
+        ),
+        const PopupMenuItem<_DesktopMenuAction>(
+          value: _DesktopMenuAction.subscriptions,
+          child: ListTile(
+            leading: Icon(Icons.repeat),
+            title: Text('Subscriptions'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<_DesktopMenuAction>(
+          value: _DesktopMenuAction.logout,
+          child: ListTile(leading: Icon(Icons.logout), title: Text('Logout')),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNavigationBar(
+    List<({Widget page, Widget icon, String label})> tabs,
+    int index,
+  ) {
+    return BottomNavigationBar(
+      currentIndex: index,
+      onTap: (index) {
+        setState(() {
+          _currentIndex = index;
+        });
+        _refreshPendingReviewCount();
+      },
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Color(primaryColour),
+      unselectedItemColor: Colors.grey,
+      items: tabs
+          .map(
+            (tab) => BottomNavigationBarItem(
+              icon: tab.icon,
+              label: tab.label,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildNavigationRail(
+    List<({Widget page, Widget icon, String label})> tabs,
+    int index,
+    double width,
+  ) {
+    final extended = width >= ResponsiveBreakpoints.wideDesktop;
+
+    return NavigationRail(
+      extended: extended,
+      minExtendedWidth: 180,
+      selectedIndex: index,
+      onDestinationSelected: (index) {
+        setState(() {
+          _currentIndex = index;
+        });
+        _refreshPendingReviewCount();
+      },
+      backgroundColor: Colors.white,
+      selectedIconTheme: IconThemeData(color: Color(primaryColour)),
+      selectedLabelTextStyle: TextStyle(
+        color: Color(primaryColour),
+        fontWeight: FontWeight.w700,
+      ),
+      unselectedIconTheme: const IconThemeData(color: Colors.grey),
+      labelType: extended ? null : NavigationRailLabelType.all,
+      destinations: tabs
+          .map(
+            (tab) => NavigationRailDestination(
+              icon: tab.icon,
+              label: Text(tab.label),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = ResponsiveBreakpoints.isDesktopWidth(
+          constraints.maxWidth,
+        );
+        final tabs = _visibleTabs();
+        final index = _currentIndex.clamp(0, tabs.length - 1);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('eHarverst'),
+            backgroundColor: Color(primaryColour),
+            actions: isDesktop ? [_buildDesktopActions()] : null,
+          ),
+          drawer: isDesktop ? null : _buildDrawer(),
+          body: isDesktop
+              ? Row(
+                  children: [
+                    _buildNavigationRail(tabs, index, constraints.maxWidth),
+                    const VerticalDivider(width: 1, thickness: 1),
+                    Expanded(child: _buildCurrentPage()),
+                  ],
+                )
+              : _buildCurrentPage(),
+          bottomNavigationBar: isDesktop
+              ? null
+              : _buildBottomNavigationBar(tabs, index),
+        );
+      },
+    );
+  }
+}
+
+enum _DesktopMenuAction {
+  forecasts,
+  demandSupply,
+  recommendations,
+  supplyHeatmap,
+  subscriptions,
+  logout,
 }
 
 class _MyAccountBadge extends StatelessWidget {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../global_variables.dart';
 import '../services/auth_service.dart';
+import '../utils/responsive_breakpoints.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -130,10 +131,12 @@ class _LoginPageState extends State<LoginPage> {
         title: const Text('eHarvest'),
         centerTitle: true,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
-          child: Card(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = ResponsiveBreakpoints.isDesktopWidth(
+            constraints.maxWidth,
+          );
+          final loginCard = Card(
             elevation: 6,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -331,8 +334,25 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             ),
-          ),
-        ),
+          );
+
+          return Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 36.0,
+              ),
+              child: isDesktop
+                  ? ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: ResponsiveBreakpoints.maxLoginWidth,
+                      ),
+                      child: loginCard,
+                    )
+                  : loginCard,
+            ),
+          );
+        },
       ),
     );
   }

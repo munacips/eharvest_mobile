@@ -6,6 +6,7 @@ import 'package:eharvest_mobile/global_variables.dart'; // Assuming primaryColou
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
 import 'package:eharvest_mobile/pages/buy_page.dart';
+import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -343,77 +344,93 @@ class HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Smart Farming, Connected Markets',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
-
-            // AI INSIGHT CARD
-            _buildAIInsightCard(),
-
-            const SizedBox(height: 24),
-
-            // TWO COLUMN SECTION (Active Orders & Market Prices)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _buildSectionCard(
-                    'ACTIVE ORDERS',
-                    _buildActiveOrdersList(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSectionCard(
-                    'MARKET PRICES',
-                    _buildMarketPricesList(),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // SEARCH BAR
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Find produce, buyers...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  onPressed: _submitSearch,
-                  icon: Icon(Icons.arrow_forward, color: Color(primaryColour)),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                filled: true,
-                fillColor: Colors.white,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = ResponsiveBreakpoints.isDesktopWidth(
+          constraints.maxWidth,
+        );
+        final content = Padding(
+          padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Smart Farming, Connected Markets',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
-              onSubmitted: (_) => _submitSearch(),
-            ),
+              const SizedBox(height: 20),
 
-            const SizedBox(height: 24),
+              // AI INSIGHT CARD
+              _buildAIInsightCard(),
 
-            // CATEGORIES
-            const Text(
-              'Categories',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _buildCategoryRow(),
-          ],
-        ),
-      ),
+              const SizedBox(height: 24),
+
+              // TWO COLUMN SECTION (Active Orders & Market Prices)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildSectionCard(
+                      'ACTIVE ORDERS',
+                      _buildActiveOrdersList(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildSectionCard(
+                      'MARKET PRICES',
+                      _buildMarketPricesList(),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // SEARCH BAR
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Find produce, buyers...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: IconButton(
+                    onPressed: _submitSearch,
+                    icon: Icon(
+                      Icons.arrow_forward,
+                      color: Color(primaryColour),
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                onSubmitted: (_) => _submitSearch(),
+              ),
+
+              const SizedBox(height: 24),
+
+              // CATEGORIES
+              const Text(
+                'Categories',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              _buildCategoryRow(),
+            ],
+          ),
+        );
+
+        if (!isDesktop) {
+          return SingleChildScrollView(child: content);
+        }
+
+        return SingleChildScrollView(
+          child: ResponsiveContent(child: content),
+        );
+      },
     );
   }
 

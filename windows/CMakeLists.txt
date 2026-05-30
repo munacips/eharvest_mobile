@@ -10,6 +10,10 @@ set(BINARY_NAME "eharvest_mobile")
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
+# Firebase's extracted C++ SDK currently declares cmake_minimum_required(3.1),
+# which CMake 4 rejects unless a compatibility floor is provided.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
 # Define build configuration option.
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)

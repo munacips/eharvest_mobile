@@ -1,6 +1,6 @@
 {
-    "name": "eharvest_mobile",
-    "short_name": "eharvest_mobile",
+    "name": "eHarvest",
+    "short_name": "eHarvest",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",

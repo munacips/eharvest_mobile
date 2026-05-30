@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -143,9 +144,12 @@ class _SignupPageState extends State<SignupPage> {
         backgroundColor: const Color(primaryColour),
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Card(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = ResponsiveBreakpoints.isDesktopWidth(
+            constraints.maxWidth,
+          );
+          final signupCard = Card(
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Padding(
@@ -357,7 +361,22 @@ class _SignupPageState extends State<SignupPage> {
               ),
             ),
           ),
-        ),
+          );
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: isDesktop
+                ? Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: ResponsiveBreakpoints.maxLoginWidth,
+                      ),
+                      child: signupCard,
+                    ),
+                  )
+                : signupCard,
+          );
+        },
       ),
     );
   }

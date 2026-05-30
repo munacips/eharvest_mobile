@@ -15,6 +15,7 @@ import 'package:eharvest_mobile/services/payment_redirect_stub.dart'
 import 'package:eharvest_mobile/services/payment_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
+import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 import 'package:eharvest_mobile/widgets/count_badge.dart';
 import 'package:eharvest_mobile/widgets/reviews_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -721,11 +722,13 @@ class MyAccountPageState extends State<MyAccountPage> {
           : errorMessage != null
           ? Center(child: Text(errorMessage!))
           : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildProfileHeader(),
-                  if (_isFarmer)
-                    Padding(
+              child: ResponsiveContent(
+                maxWidth: ResponsiveBreakpoints.maxListWidth,
+                child: Column(
+                  children: [
+                    _buildProfileHeader(),
+                    if (_isFarmer)
+                      Padding(
                       padding: const EdgeInsets.only(
                         top: 16.0,
                         left: 16,
@@ -861,6 +864,7 @@ class MyAccountPageState extends State<MyAccountPage> {
                     ),
                   ),
                 ],
+                ),
               ),
             ),
     );

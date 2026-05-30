@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
+import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 import 'package:http/http.dart' as http;
 
 class LogisticsPage extends StatefulWidget {
@@ -184,25 +185,46 @@ class LogisticsPageState extends State<LogisticsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Column(
-        children: [
-          _buildSummaryHeader(),
-          Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : errorMessage != null
-                ? Center(child: Text(errorMessage!))
-                : logisticsRequests.isEmpty
-                ? const Center(child: Text('No logistics requests found.'))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: logisticsRequests.length,
-                    itemBuilder: (context, index) {
-                      return _buildLogisticsCard(logisticsRequests[index]);
-                    },
-                  ),
-          ),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = ResponsiveBreakpoints.isDesktopWidth(
+            constraints.maxWidth,
+          );
+
+          return Column(
+            children: [
+              _buildSummaryHeader(),
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : errorMessage != null
+                    ? Center(child: Text(errorMessage!))
+                    : logisticsRequests.isEmpty
+                    ? const Center(child: Text('No logistics requests found.'))
+                    : ListView.builder(
+                        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
+                        itemCount: logisticsRequests.length,
+                        itemBuilder: (context, index) {
+                          final card = _buildLogisticsCard(
+                            logisticsRequests[index],
+                          );
+                          if (!isDesktop) {
+                            return card;
+                          }
+                          return Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth: ResponsiveBreakpoints.maxListWidth,
+                              ),
+                              child: card,
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/pages/checkout_page.dart';
 import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:eharvest_mobile/pages/subscription_form_page.dart';
+import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 
 class BuyPage extends StatefulWidget {
   final String? initialSearchQuery;
@@ -215,81 +216,102 @@ class BuyPageState extends State<BuyPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          if (!_canPurchase)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: Colors.grey.shade200,
-              child: const Text(
-                'Browsing only: purchasing is disabled for your account.',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          // 1. Search and Filter Header
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: "Search products...",
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    ),
-                    onChanged: (value) {
-                      _searchDebounce?.cancel();
-                      _searchDebounce = Timer(
-                        const Duration(milliseconds: 500),
-                        () {
-                          setState(() {
-                            _searchQuery = value.trim();
-                          });
-                          fetchProducts();
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                IconButton(
-                  onPressed: () => _showFilterSheet(context),
-                  icon: const Icon(Icons.filter_list),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Color(
-                      primaryColour,
-                    ).withValues(alpha: 0.1),
-                    foregroundColor: Color(primaryColour),
-                  ),
-                ),
-              ],
-            ),
-          ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = ResponsiveBreakpoints.isDesktopWidth(
+            constraints.maxWidth,
+          );
+          final gridPadding = isDesktop
+              ? const EdgeInsets.fromLTRB(24, 0, 24, 24)
+              : const EdgeInsets.symmetric(horizontal: 16);
 
-          // 2. Product Grid
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.54,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+          return Column(
+            children: [
+              if (!_canPurchase)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  color: Colors.grey.shade200,
+                  child: const Text(
+                    'Browsing only: purchasing is disabled for your account.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              // 1. Search and Filter Header
+              Padding(
+                padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: "Search products...",
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 0,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          _searchDebounce?.cancel();
+                          _searchDebounce = Timer(
+                            const Duration(milliseconds: 500),
+                            () {
+                              setState(() {
+                                _searchQuery = value.trim();
+                              });
+                              fetchProducts();
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    IconButton(
+                      onPressed: () => _showFilterSheet(context),
+                      icon: const Icon(Icons.filter_list),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Color(
+                          primaryColour,
+                        ).withValues(alpha: 0.1),
+                        foregroundColor: Color(primaryColour),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                return _buildProductCard(product);
-              },
-            ),
-          ),
-        ],
+
+              // 2. Product Grid
+              Expanded(
+                child: GridView.builder(
+                  padding: gridPadding,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: ResponsiveBreakpoints.productGridColumns(
+                      constraints.maxWidth,
+                    ),
+                    childAspectRatio:
+                        ResponsiveBreakpoints.productGridAspectRatio(
+                          constraints.maxWidth,
+                        ),
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: products.length,
+                  itemBuilder: (context, index) {
+                    final product = products[index];
+                    return _buildProductCard(product);
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
 
       // 3. Floating Checkout Button

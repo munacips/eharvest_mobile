@@ -1,0 +1,38 @@
+name: Deploy Flutter Web
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./DockerFile
+          push: true
+          tags: |
+            munacips/eharvest_flutter:latest
+            munacips/eharvest_flutter:${{ github.sha }}
+
+      - name: SSH into VM and restart eharvest_flutter
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/ubuntu/eharvest_main
+            docker compose pull flutter
+            docker compose up -d flutter

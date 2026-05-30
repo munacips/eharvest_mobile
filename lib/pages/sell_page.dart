@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/ai_service.dart';
+import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 
 class SellPage extends StatefulWidget {
   const SellPage({super.key});
@@ -225,152 +226,177 @@ class SellPageState extends State<SellPage> {
     }
 
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "List New Produce",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 5),
-              const Text(
-                "Enter details below to list your goods on the market.",
-              ),
-              const SizedBox(height: 20),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = ResponsiveBreakpoints.isDesktopWidth(
+            constraints.maxWidth,
+          );
+          final form = Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "List New Produce",
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  "Enter details below to list your goods on the market.",
+                ),
+                const SizedBox(height: 20),
 
-              // Image Upload Placeholder
-              _buildImageUploader(),
+                // Image Upload Placeholder
+                _buildImageUploader(),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Produce Name
-              _buildTextField(
-                _nameController,
-                "Produce Name (e.g. Carrots)",
-                Icons.eco,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = _resolveCategory(value);
-                  });
-                },
-              ),
+                // Produce Name
+                _buildTextField(
+                  _nameController,
+                  "Produce Name (e.g. Carrots)",
+                  Icons.eco,
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedCategory = _resolveCategory(value);
+                    });
+                  },
+                ),
 
-              const SizedBox(height: 15),
+                const SizedBox(height: 15),
 
-              // Category & Quality Grade Row
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDisabledField(
-                      "Category",
-                      _selectedCategory,
+                // Category & Quality Grade Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildDisabledField(
+                        "Category",
+                        _selectedCategory,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildDropdown(
-                      "Quality Grade",
-                      _grades,
-                      _selectedGrade,
-                      (val) => setState(() => _selectedGrade = val!),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildDropdown(
+                        "Quality Grade",
+                        _grades,
+                        _selectedGrade,
+                        (val) => setState(() => _selectedGrade = val!),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
-              const SizedBox(height: 15),
+                const SizedBox(height: 15),
 
-              // Quantity & Price Row
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      _quantityController,
-                      "Quantity (kg)",
-                      Icons.scale,
-                      isNumber: true,
+                // Quantity & Price Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildTextField(
+                        _quantityController,
+                        "Quantity (kg)",
+                        Icons.scale,
+                        isNumber: true,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildTextField(
-                      _priceController,
-                      "Price per unit (\$)",
-                      Icons.payments,
-                      isNumber: true,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildTextField(
+                        _priceController,
+                        "Price per unit (\$)",
+                        Icons.payments,
+                        isNumber: true,
+                      ),
                     ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                _buildAiSuggestionCard(),
+
+                const SizedBox(height: 15),
+
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Can provide transport'),
+                  subtitle: const Text(
+                    'Allow buyers to request farmer delivery',
                   ),
-                ],
-              ),
+                  value: _canProvideTransport,
+                  activeThumbColor: Color(primaryColour),
+                  onChanged: (value) {
+                    setState(() => _canProvideTransport = value);
+                  },
+                ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 15),
 
-              _buildAiSuggestionCard(),
-
-              const SizedBox(height: 15),
-
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Can provide transport'),
-                subtitle: const Text('Allow buyers to request farmer delivery'),
-                value: _canProvideTransport,
-                activeThumbColor: Color(primaryColour),
-                onChanged: (value) {
-                  setState(() => _canProvideTransport = value);
-                },
-              ),
-
-              const SizedBox(height: 15),
-
-              // Date Pickers
-              Row(
-                children: [
-                  Expanded(
-                    child: _dateTile(
-                      "Harvest Date",
-                      _harvestDate,
-                      () => _selectDate(context, true),
+                // Date Pickers
+                Row(
+                  children: [
+                    Expanded(
+                      child: _dateTile(
+                        "Harvest Date",
+                        _harvestDate,
+                        () => _selectDate(context, true),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _dateTile(
-                      "Available From",
-                      _availableDate,
-                      () => _selectDate(context, false),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _dateTile(
+                        "Available From",
+                        _availableDate,
+                        () => _selectDate(context, false),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
-              const SizedBox(height: 30),
+                const SizedBox(height: 30),
 
-              // Submit Button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _submitForm,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(primaryColour),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                // Submit Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _submitForm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(primaryColour),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    "List Produce on Market",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    child: const Text(
+                      "List Produce on Market",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
                   ),
                 ),
+                const SizedBox(height: 40),
+              ],
+            ),
+          );
+
+          if (!isDesktop) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: form,
+            );
+          }
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: ResponsiveBreakpoints.maxFormWidth,
+                ),
+                child: form,
               ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
