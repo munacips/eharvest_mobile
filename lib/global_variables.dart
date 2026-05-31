@@ -661,7 +661,8 @@ class Review {
         json['createdAt'] ?? json['created_at'] ?? json['dateCreated'];
     return Review(
       id: json['id'] ?? 0,
-      orderId: int.tryParse(
+      orderId:
+          int.tryParse(
             (json['orderId'] ??
                     json['order_id'] ??
                     (json['order'] is Map ? json['order']['id'] : 0))
@@ -792,8 +793,10 @@ const backgroundNeutral = 0xFFECECEC;
 const textCharcoalGrey = 0xFF212121;
 
 class AppConfig {
-  static const String _scheme =
-      String.fromEnvironment('EHARVEST_API_SCHEME', defaultValue: 'http');
+  static const String _scheme = String.fromEnvironment(
+    'EHARVEST_API_SCHEME',
+    defaultValue: 'http',
+  );
   static const String _hostOverride = String.fromEnvironment(
     'EHARVEST_API_HOST',
     defaultValue: '',
@@ -806,33 +809,44 @@ class AppConfig {
     'EHARVEST_AI_PORT',
     defaultValue: '8000',
   );
+  static const String _defaultHost = '34.206.207.121';
 
   static bool get _useRelativeHttpUrl => kIsWeb && _hostOverride.isEmpty;
 
+  static String get _normalizedScheme {
+    final scheme = _scheme.trim().replaceFirst(RegExp(r':/*$'), '');
+    return scheme.isEmpty ? 'http' : scheme;
+  }
+
   static String get host {
-    if (_hostOverride.isNotEmpty) {
-      return _hostOverride;
+    final hostOverride = _hostOverride.trim();
+    if (hostOverride.isNotEmpty) {
+      final withoutScheme = hostOverride.replaceFirst(
+        RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://'),
+        '',
+      );
+      final withoutPath = withoutScheme.split('/').first;
+      return withoutPath.split(':').first;
     }
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS)) {
-      return '34.206.207.121';
+      return _defaultHost;
     }
-    return '34.206.207.121';
+    return _defaultHost;
   }
 
   static String get baseHttpUrl =>
-      _useRelativeHttpUrl ? '' : '$_scheme://$host:$_port';
-  static String get baseAiUrl => '$_scheme://$host:$_aiPort';
+      _useRelativeHttpUrl ? '' : '$_normalizedScheme://$host:$_port';
+  static String get baseAiUrl => '$_normalizedScheme://$host:$_aiPort';
   static String get chatWebSocketUrl =>
       _useRelativeHttpUrl ? '/ws' : '$baseHttpUrl/ws';
-  static String get trackingWebSocketUrl =>
-      _useRelativeHttpUrl
-          ? '/ws/tracking/websocket'
-          : '${_scheme == 'https' ? 'wss' : 'ws'}://$host:$_port/ws/tracking/websocket';
+  static String get trackingWebSocketUrl => _useRelativeHttpUrl
+      ? '/ws/tracking/websocket'
+      : '${_normalizedScheme == 'https' ? 'wss' : 'ws'}://$host:$_port/ws/tracking/websocket';
 }
 
 String get api => '${AppConfig.baseHttpUrl}/api/v1/';
 String get reportsApi => '${AppConfig.baseHttpUrl}/api/reports/';
 String get authApi => '${AppConfig.baseHttpUrl}/auth/';
-String get aiApi => '${AppConfig.baseAiUrl}/';
+String get aiApi => AppConfig.baseAiUrl;

@@ -56,11 +56,14 @@ class AiService {
     required double longitude,
     int days = 7,
   }) {
-    return _get('/integrations/weather', query: {
-      'latitude': latitude.toString(),
-      'longitude': longitude.toString(),
-      'days': days.toString(),
-    });
+    return _get(
+      '/integrations/weather',
+      query: {
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+        'days': days.toString(),
+      },
+    );
   }
 
   static Future<dynamic> integrationsMarketPrices({
@@ -89,14 +92,9 @@ class AiService {
     return _get('/');
   }
 
-  static Future<dynamic> _get(
-    String path, {
-    Map<String, String>? query,
-  }) async {
-    final uri = Uri.parse('$aiApi$path').replace(queryParameters: query);
-    final response = await http
-        .get(uri, headers: _headers())
-        .timeout(_timeout);
+  static Future<dynamic> _get(String path, {Map<String, String>? query}) async {
+    final uri = _buildUri(path).replace(queryParameters: query);
+    final response = await http.get(uri, headers: _headers()).timeout(_timeout);
     return _handleResponse(response);
   }
 
@@ -104,15 +102,19 @@ class AiService {
     String path,
     Map<String, dynamic> payload,
   ) async {
-    final uri = Uri.parse('$aiApi$path');
+    final uri = _buildUri(path);
     final response = await http
-        .post(
-          uri,
-          headers: _headers(),
-          body: jsonEncode(payload),
-        )
+        .post(uri, headers: _headers(), body: jsonEncode(payload))
         .timeout(_timeout);
     return _handleResponse(response);
+  }
+
+  static Uri _buildUri(String path) {
+    final base = aiApi.endsWith('/')
+        ? aiApi.substring(0, aiApi.length - 1)
+        : aiApi;
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$base$normalizedPath');
   }
 
   static Map<String, String> _headers() {
@@ -139,7 +141,8 @@ class AiService {
 
     String message = 'Request failed (${response.statusCode}).';
     if (decoded is Map<String, dynamic>) {
-      message = decoded['detail']?.toString() ??
+      message =
+          decoded['detail']?.toString() ??
           decoded['message']?.toString() ??
           decoded['error']?.toString() ??
           message;
