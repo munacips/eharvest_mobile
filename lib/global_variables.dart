@@ -807,6 +807,8 @@ class AppConfig {
     defaultValue: '8000',
   );
 
+  static bool get _useRelativeHttpUrl => kIsWeb && _hostOverride.isEmpty;
+
   static String get host {
     if (_hostOverride.isNotEmpty) {
       return _hostOverride;
@@ -816,14 +818,18 @@ class AppConfig {
             defaultTargetPlatform == TargetPlatform.iOS)) {
       return '34.206.207.121';
     }
-    return 'backend';
+    return '34.206.207.121';
   }
 
-  static String get baseHttpUrl => '$_scheme://$host:$_port';
+  static String get baseHttpUrl =>
+      _useRelativeHttpUrl ? '' : '$_scheme://$host:$_port';
   static String get baseAiUrl => '$_scheme://$host:$_aiPort';
-  static String get chatWebSocketUrl => '$baseHttpUrl/ws';
+  static String get chatWebSocketUrl =>
+      _useRelativeHttpUrl ? '/ws' : '$baseHttpUrl/ws';
   static String get trackingWebSocketUrl =>
-      '${_scheme == 'https' ? 'wss' : 'ws'}://$host:$_port/ws/tracking/websocket';
+      _useRelativeHttpUrl
+          ? '/ws/tracking/websocket'
+          : '${_scheme == 'https' ? 'wss' : 'ws'}://$host:$_port/ws/tracking/websocket';
 }
 
 String get api => '${AppConfig.baseHttpUrl}/api/v1/';
