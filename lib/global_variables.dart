@@ -811,10 +811,12 @@ class AppConfig {
     if (_hostOverride.isNotEmpty) {
       return _hostOverride;
     }
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return '10.0.2.2';
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      return '34.206.207.121';
     }
-    return 'localhost';
+    return 'backend';
   }
 
   static String get baseHttpUrl => '$_scheme://$host:$_port';
