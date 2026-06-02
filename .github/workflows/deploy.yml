@@ -24,7 +24,6 @@ jobs:
           push: true
           tags: |
             munacips/eharvest_flutter:latest
-            munacips/eharvest_flutter:${{ github.sha }}
 
       - name: SSH into VM and restart eharvest_flutter
         uses: appleboy/ssh-action@v1
@@ -35,4 +34,4 @@ jobs:
           script: |
             cd /home/ubuntu/eharvest_main
             docker compose pull flutter
-            docker compose up -d flutter
+            docker compose up -d --force-recreate flutter
