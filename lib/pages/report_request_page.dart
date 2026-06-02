@@ -25,7 +25,6 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
   bool _isLoadingSession = true;
   String? _errorMessage;
   int? _currentUserId;
-  String _roleKey = '';
 
   @override
   void initState() {
@@ -46,12 +45,10 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
 
   Future<void> _loadSession() async {
     final userId = await AuthService.getUserId();
-    final role = await AuthService.getRole();
     if (!mounted) return;
 
     setState(() {
       _currentUserId = userId;
-      _roleKey = _normalizeRoleKey(role ?? '');
       _isLoadingSession = false;
     });
   }
@@ -81,7 +78,7 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
 
     final queryParams = <String, String>{};
     for (final param in widget.report.params) {
-      if (_isCurrentUserIdParam(param)) {
+      if (_isAutoIdParam(param)) {
         final currentUserId = _currentUserId;
         if (currentUserId == null) {
           const message = 'Authentication error. Please log in again.';
@@ -141,76 +138,26 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
     );
   }
 
-  String _normalizeRoleKey(String rawRole) {
-    final normalized = rawRole.trim().toLowerCase().replaceAll(
-      RegExp(r'[\s-]+'),
-      '_',
-    );
-    final baseRole = normalized.startsWith('role_')
-        ? normalized.substring('role_'.length)
-        : normalized;
-
-    switch (baseRole) {
-      case 'farmer':
-      case 'buyer':
-        return baseRole;
-      case 'logistics':
-      case 'logistics_provider':
-      case 'logisticsprovider':
-      case 'driver':
-        return 'logistics';
-      default:
-        return baseRole;
-    }
-  }
-
   String _canonicalParamName(String param) {
     return param.trim().replaceAll(RegExp(r'[_\-\s]+'), '').toLowerCase();
   }
 
-  bool _isCurrentUserIdParam(String param) {
-    final canonicalParam = _canonicalParamName(param);
-    if (canonicalParam == 'userid' || canonicalParam == 'currentuserid') {
-      return true;
-    }
-
-    switch (_roleKey) {
-      case 'farmer':
-        return canonicalParam == 'farmerid' || canonicalParam == 'sellerid';
-      case 'buyer':
-        return canonicalParam == 'buyerid';
-      case 'logistics':
-        return canonicalParam == 'providerid' ||
-            canonicalParam == 'logisticsproviderid' ||
-            canonicalParam == 'driverid';
-      default:
-        return false;
-    }
+  bool _isAutoIdParam(String param) {
+    return _canonicalParamName(param).endsWith('id');
   }
 
   bool _isKnownNumericIdParam(String param) {
-    const idParams = <String>{
-      'userid',
-      'currentuserid',
-      'farmerid',
-      'sellerid',
-      'buyerid',
-      'warehouseid',
-      'providerid',
-      'logisticsproviderid',
-      'driverid',
-    };
-    return idParams.contains(_canonicalParamName(param));
+    return _isAutoIdParam(param);
   }
 
   List<String> get _visibleParams {
     return widget.report.params
-        .where((param) => !_isCurrentUserIdParam(param))
+        .where((param) => !_isAutoIdParam(param))
         .toList();
   }
 
   bool get _hasAutoCurrentUserParams {
-    return widget.report.params.any(_isCurrentUserIdParam);
+    return widget.report.params.any(_isAutoIdParam);
   }
 
   String _labelForParam(String param) {
