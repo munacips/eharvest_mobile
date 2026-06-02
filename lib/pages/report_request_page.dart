@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/models/report_descriptor.dart';
 import 'package:eharvest_mobile/pages/report_pdf_viewer_page.dart';
+import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/report_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -21,7 +22,10 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
       <String, TextEditingController>{};
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
   bool _isGenerating = false;
+  bool _isLoadingSession = true;
   String? _errorMessage;
+  int? _currentUserId;
+  String _roleKey = '';
 
   @override
   void initState() {
@@ -29,6 +33,7 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
     for (final param in widget.report.params) {
       _controllers[param] = TextEditingController();
     }
+    _loadSession();
   }
 
   @override
@@ -37,6 +42,18 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _loadSession() async {
+    final userId = await AuthService.getUserId();
+    final role = await AuthService.getRole();
+    if (!mounted) return;
+
+    setState(() {
+      _currentUserId = userId;
+      _roleKey = _normalizeRoleKey(role ?? '');
+      _isLoadingSession = false;
+    });
   }
 
   Future<void> _pickDate(String param) async {
@@ -63,10 +80,27 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
     });
 
     final queryParams = <String, String>{};
-    for (final entry in _controllers.entries) {
-      final value = entry.value.text.trim();
-      if (value.isNotEmpty) {
-        queryParams[entry.key] = value;
+    for (final param in widget.report.params) {
+      if (_isCurrentUserIdParam(param)) {
+        final currentUserId = _currentUserId;
+        if (currentUserId == null) {
+          const message = 'Authentication error. Please log in again.';
+          setState(() {
+            _isGenerating = false;
+            _errorMessage = message;
+          });
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text(message)));
+          return;
+        }
+        queryParams[param] = currentUserId.toString();
+        continue;
+      }
+
+      final value = _controllers[param]?.text.trim();
+      if (value != null && value.isNotEmpty) {
+        queryParams[param] = value;
       }
     }
 
@@ -107,6 +141,78 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
     );
   }
 
+  String _normalizeRoleKey(String rawRole) {
+    final normalized = rawRole.trim().toLowerCase().replaceAll(
+      RegExp(r'[\s-]+'),
+      '_',
+    );
+    final baseRole = normalized.startsWith('role_')
+        ? normalized.substring('role_'.length)
+        : normalized;
+
+    switch (baseRole) {
+      case 'farmer':
+      case 'buyer':
+        return baseRole;
+      case 'logistics':
+      case 'logistics_provider':
+      case 'logisticsprovider':
+      case 'driver':
+        return 'logistics';
+      default:
+        return baseRole;
+    }
+  }
+
+  String _canonicalParamName(String param) {
+    return param.trim().replaceAll(RegExp(r'[_\-\s]+'), '').toLowerCase();
+  }
+
+  bool _isCurrentUserIdParam(String param) {
+    final canonicalParam = _canonicalParamName(param);
+    if (canonicalParam == 'userid' || canonicalParam == 'currentuserid') {
+      return true;
+    }
+
+    switch (_roleKey) {
+      case 'farmer':
+        return canonicalParam == 'farmerid' || canonicalParam == 'sellerid';
+      case 'buyer':
+        return canonicalParam == 'buyerid';
+      case 'logistics':
+        return canonicalParam == 'providerid' ||
+            canonicalParam == 'logisticsproviderid' ||
+            canonicalParam == 'driverid';
+      default:
+        return false;
+    }
+  }
+
+  bool _isKnownNumericIdParam(String param) {
+    const idParams = <String>{
+      'userid',
+      'currentuserid',
+      'farmerid',
+      'sellerid',
+      'buyerid',
+      'warehouseid',
+      'providerid',
+      'logisticsproviderid',
+      'driverid',
+    };
+    return idParams.contains(_canonicalParamName(param));
+  }
+
+  List<String> get _visibleParams {
+    return widget.report.params
+        .where((param) => !_isCurrentUserIdParam(param))
+        .toList();
+  }
+
+  bool get _hasAutoCurrentUserParams {
+    return widget.report.params.any(_isCurrentUserIdParam);
+  }
+
   String _labelForParam(String param) {
     switch (param) {
       case 'from':
@@ -121,25 +227,40 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
         return 'Farmer ID';
       case 'sellerId':
         return 'Seller ID';
+      case 'buyerId':
+        return 'Buyer ID';
       case 'warehouseId':
         return 'Warehouse ID';
+      case 'providerId':
+        return 'Provider ID';
+      case 'logisticsProviderId':
+        return 'Logistics provider ID';
+      case 'driverId':
+        return 'Driver ID';
       default:
-        return param.replaceAllMapped(
-          RegExp(r'(^|_)([a-z])'),
-          (match) => '${match.group(1) == '_' ? ' ' : ''}${match.group(2)!.toUpperCase()}',
-        );
+        final spaced = param
+            .replaceAll(RegExp(r'[_\-]+'), ' ')
+            .replaceAllMapped(
+              RegExp(r'([a-z0-9])([A-Z])'),
+              (match) => '${match.group(1)} ${match.group(2)}',
+            )
+            .trim();
+        if (spaced.isEmpty) return param;
+        return spaced
+            .split(RegExp(r'\s+'))
+            .map(
+              (word) => word.isEmpty
+                  ? word
+                  : '${word[0].toUpperCase()}${word.substring(1)}',
+            )
+            .join(' ');
     }
   }
 
   TextInputType _keyboardTypeForParam(String param) {
-    switch (param) {
-      case 'farmerId':
-      case 'sellerId':
-      case 'warehouseId':
-        return TextInputType.number;
-      default:
-        return TextInputType.text;
-    }
+    return _isKnownNumericIdParam(param)
+        ? TextInputType.number
+        : TextInputType.text;
   }
 
   Widget _buildParamField(String param) {
@@ -151,9 +272,7 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
         decoration: InputDecoration(
           labelText: _labelForParam(param),
           suffixIcon: const Icon(Icons.calendar_today_outlined),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
@@ -163,15 +282,15 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
       keyboardType: _keyboardTypeForParam(param),
       decoration: InputDecoration(
         labelText: _labelForParam(param),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final visibleParams = _visibleParams;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.report.label),
@@ -206,7 +325,37 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
               ),
             ),
             const SizedBox(height: 16),
-            if (widget.report.params.isEmpty)
+            if (_isLoadingSession)
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Preparing report options...'),
+                    ],
+                  ),
+                ),
+              )
+            else if (widget.report.params.isEmpty)
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('This report does not require any parameters.'),
+                ),
+              )
+            else if (visibleParams.isEmpty)
               Card(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -214,7 +363,7 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
                 child: const Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
-                    'This report does not require any parameters.',
+                    'Your account details will be applied automatically.',
                   ),
                 ),
               )
@@ -226,7 +375,7 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    children: widget.report.params
+                    children: visibleParams
                         .map(
                           (param) => Padding(
                             padding: const EdgeInsets.only(bottom: 14),
@@ -237,6 +386,31 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
                   ),
                 ),
               ),
+            if (!_isLoadingSession &&
+                _hasAutoCurrentUserParams &&
+                visibleParams.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.person_outline),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Your account ID will be included automatically.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
               Container(
@@ -256,7 +430,9 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isGenerating ? null : _generateReport,
+                onPressed: _isGenerating || _isLoadingSession
+                    ? null
+                    : _generateReport,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(primaryColour),
                   foregroundColor: Colors.white,
