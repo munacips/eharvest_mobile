@@ -18,6 +18,16 @@ class ReportRequestPage extends StatefulWidget {
 }
 
 class _ReportRequestPageState extends State<ReportRequestPage> {
+  static const Set<String> _currentUserIdParamNames = <String>{
+    'userid',
+    'farmerid',
+    'sellerid',
+    'buyerid',
+    'providerid',
+    'logisticsproviderid',
+    'driverid',
+  };
+
   final Map<String, TextEditingController> _controllers =
       <String, TextEditingController>{};
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
@@ -44,23 +54,40 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
   }
 
   Future<void> _loadSession() async {
-    final userId = await AuthService.getUserId();
-    if (!mounted) return;
+    try {
+      final userId = await AuthService.getUserId();
+      if (!mounted) return;
 
-    setState(() {
-      _currentUserId = userId;
-      _isLoadingSession = false;
-    });
+      setState(() {
+        _currentUserId = userId;
+        _isLoadingSession = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _currentUserId = null;
+        _isLoadingSession = false;
+        _errorMessage = 'Unable to load your session. Please log in again.';
+      });
+    }
   }
 
   Future<void> _pickDate(String param) async {
-    final initialDate =
-        DateTime.tryParse(_controllers[param]?.text ?? '') ?? DateTime.now();
+    final minDate = DateTime(2020);
+    final maxDate = DateTime(2100);
+    final parsedDate = DateTime.tryParse(_controllers[param]?.text ?? '');
+    var initialDate = parsedDate ?? DateTime.now();
+    if (initialDate.isBefore(minDate)) {
+      initialDate = minDate;
+    } else if (initialDate.isAfter(maxDate)) {
+      initialDate = maxDate;
+    }
+
     final picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+      firstDate: minDate,
+      lastDate: maxDate,
     );
     if (picked == null) return;
 
@@ -143,7 +170,7 @@ class _ReportRequestPageState extends State<ReportRequestPage> {
   }
 
   bool _isAutoIdParam(String param) {
-    return _canonicalParamName(param).endsWith('id');
+    return _currentUserIdParamNames.contains(_canonicalParamName(param));
   }
 
   bool _isKnownNumericIdParam(String param) {
