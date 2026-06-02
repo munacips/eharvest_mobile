@@ -1,3 +1,4 @@
+import 'dart:js_interop';
 import 'dart:typed_data';
 
 import 'package:eharvest_mobile/global_variables.dart';
@@ -6,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 // Web-only imports — tree-shaken away on native platforms
-import 'dart:js_interop' if (dart.library.io) 'dart:math' show Random;
 import 'dart:ui_web' as ui_web
     if (dart.library.io) 'package:eharvest_mobile/stubs/ui_web_stub.dart';
 import 'package:web/web.dart' as web
