@@ -13,7 +13,6 @@ import 'package:eharvest_mobile/services/order_service.dart';
 import 'package:eharvest_mobile/services/payment_redirect_stub.dart'
     if (dart.library.html) 'package:eharvest_mobile/services/payment_redirect_web.dart';
 import 'package:eharvest_mobile/services/payment_service.dart';
-import 'package:eharvest_mobile/services/ai_service.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
 import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
 import 'package:eharvest_mobile/widgets/count_badge.dart';
@@ -39,11 +38,6 @@ class MyAccountPageState extends State<MyAccountPage> {
   List<Order> _buyerOrders = [];
   List<Map<String, dynamic>> _presentDeliveries = [];
   List<Map<String, dynamic>> _pastDeliveries = [];
-  bool _aiTrustLoading = false;
-  double? _aiTrustScore;
-  int? _aiTrustScale;
-  int? _aiReviewCount;
-  String? _aiTrustError;
   bool _driverDeliveriesExpanded = false;
   String _resolvedRoleKey = '';
   final TextEditingController _depositAmountController =
@@ -256,41 +250,6 @@ class MyAccountPageState extends State<MyAccountPage> {
         errorMessage = 'Error loading user data: $e';
         isLoading = false;
       });
-    }
-  }
-
-  Future<void> _refreshAiTrustScore() async {
-    setState(() {
-      _aiTrustLoading = true;
-      _aiTrustError = null;
-    });
-    try {
-      final userId = await AuthService.getUserId();
-      if (userId == null) {
-        throw Exception('User ID unavailable.');
-      }
-      final response = await AiService.trustScore(userId.toString());
-      if (response is Map<String, dynamic>) {
-        setState(() {
-          _aiTrustScore = double.tryParse(
-            response['trust_score']?.toString() ?? '',
-          );
-          _aiTrustScale = int.tryParse(response['scale']?.toString() ?? '');
-          _aiReviewCount = int.tryParse(
-            response['review_count']?.toString() ?? '',
-          );
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _aiTrustError = e.toString();
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _aiTrustLoading = false;
-        });
-      }
     }
   }
 

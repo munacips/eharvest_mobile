@@ -97,16 +97,7 @@ class SellPageState extends State<SellPage> {
   DateTime _availableDate = DateTime.now();
   bool _canProvideTransport = false;
 
-  final List<String> _categories = [
-    'Cereals and Tubers',
-    'Pulses and Legumes',
-    'Vegetables',
-    'Fruits',
-    'Oils and Fats',
-    'Protein',
-    'Misc',
-    _otherCategory,
-  ];
+
   final List<String> _grades = ['Grade A', 'Grade B', 'Grade C'];
   final List<String> _monthNames = const [
     'January',

@@ -62,41 +62,6 @@ class LogisticsPageState extends State<LogisticsPage> {
         .toList();
   }
 
-  String _readString(Map<String, dynamic>? map, List<String> keys) {
-    if (map == null) return '';
-    for (final key in keys) {
-      final value = map[key];
-      if (value != null) {
-        final text = value.toString().trim();
-        if (text.isNotEmpty && text.toLowerCase() != 'null') {
-          return text;
-        }
-      }
-    }
-    return '';
-  }
-
-  int _readInt(
-    Map<String, dynamic>? map,
-    List<String> keys, {
-    int fallback = 0,
-  }) {
-    final text = _readString(map, keys);
-    if (text.isEmpty) return fallback;
-    return int.tryParse(text) ?? fallback;
-  }
-
-  Map<String, dynamic>? _readMap(Map<String, dynamic>? map, List<String> keys) {
-    if (map == null) return null;
-    for (final key in keys) {
-      final value = map[key];
-      if (value is Map) {
-        return value.map((dynamic k, dynamic v) => MapEntry(k.toString(), v));
-      }
-    }
-    return null;
-  }
-
   bool _isRelatedToCurrentUser(LogisticsRequest request) {
     final userId = _currentUserId;
     if (userId == null) return false;
@@ -408,45 +373,4 @@ class LogisticsPageState extends State<LogisticsPage> {
     );
   }
 
-  void _showTrackingDetails(LogisticsRequest request) {
-    final status = (request.status).toString().toUpperCase();
-    final pickupLocation = request.pickupLocation.isNotEmpty
-        ? request.pickupLocation
-        : 'Unknown';
-    final deliveryLocation = request.deliveryLocation.isNotEmpty
-        ? request.deliveryLocation
-        : 'Unknown';
-    double progress = 0.2;
-    if (status == 'AWAITING_PICKUP') {
-      progress = 0.3;
-    } else if (status == 'IN_TRANSIT') {
-      progress = 0.6;
-    } else if (status == 'DELIVERED') {
-      progress = 1.0;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        height: 200,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Text(
-              "Tracking ID: #LOG-${request.id}",
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            LinearProgressIndicator(value: progress),
-            const SizedBox(height: 20),
-            Text("Status: ${status.isEmpty ? 'UNKNOWN' : status}"),
-            const SizedBox(height: 6),
-            Text("Pickup: $pickupLocation"),
-            const SizedBox(height: 6),
-            Text("Delivery: $deliveryLocation"),
-          ],
-        ),
-      ),
-    );
-  }
 }

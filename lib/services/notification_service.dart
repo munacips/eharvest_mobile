@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eharvest_mobile/services/notification_api_service.dart';
@@ -32,14 +32,14 @@ class NotificationService {
       _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
       // Platform-specific initialization for local notifications
-      if (Platform.isAndroid) {
+      if (_isAndroid) {
         const AndroidInitializationSettings androidSettings =
             AndroidInitializationSettings('@mipmap/ic_launcher');
         const InitializationSettings initSettings = InitializationSettings(
           android: androidSettings,
         );
         await _flutterLocalNotificationsPlugin.initialize(initSettings);
-      } else if (Platform.isIOS) {
+      } else if (_isIOS) {
         const DarwinInitializationSettings iosSettings =
             DarwinInitializationSettings(
               requestAlertPermission: true,
@@ -127,9 +127,7 @@ class NotificationService {
         return;
       }
 
-      final String deviceType = Platform.isAndroid
-          ? 'android'
-          : (Platform.isIOS ? 'ios' : 'web');
+      final String deviceType = _deviceType;
 
       final bool success = await NotificationApiService.registerToken(
         userId: userIdStr,
@@ -170,7 +168,7 @@ class NotificationService {
     // Handle background messages (when app is minimized)
     // Note: This is handled automatically by FCM on Android/iOS
     // We just log it for debugging
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       FirebaseMessaging.onBackgroundMessage(_backgroundMessageHandler);
     }
   }
@@ -255,5 +253,17 @@ class NotificationService {
     } catch (e) {
       print('Error deleting FCM token: $e');
     }
+  }
+
+  static bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  static bool get _isIOS =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  static String get _deviceType {
+    if (_isAndroid) return 'android';
+    if (_isIOS) return 'ios';
+    return 'web';
   }
 }
