@@ -211,7 +211,7 @@ class OrderTrackingSubscription {
       final headers = <String, String>{'Authorization': 'Bearer $_token'};
       _stompClient?.deactivate();
       _stompClient = StompClient(
-        config: StompConfig(
+        config: StompConfig.sockJS(
           url: AppConfig.trackingWebSocketUrl,
           stompConnectHeaders: headers,
           webSocketConnectHeaders: headers,

@@ -839,11 +839,17 @@ class AppConfig {
   static String get baseHttpUrl =>
       _useRelativeHttpUrl ? '' : '$_normalizedScheme://$host:$_port';
   static String get baseAiUrl => '$_normalizedScheme://$host:$_aiPort';
+
+  static String get _webSocketHttpOrigin {
+    final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
+    return '$scheme://${Uri.base.authority}';
+  }
+
   static String get chatWebSocketUrl =>
-      _useRelativeHttpUrl ? '/ws' : '$baseHttpUrl/ws';
+      _useRelativeHttpUrl ? '$_webSocketHttpOrigin/ws' : '$baseHttpUrl/ws';
   static String get trackingWebSocketUrl => _useRelativeHttpUrl
-      ? '/ws/tracking/websocket'
-      : '${_normalizedScheme == 'https' ? 'wss' : 'ws'}://$host:$_port/ws/tracking/websocket';
+      ? '$_webSocketHttpOrigin/ws/tracking'
+      : '$baseHttpUrl/ws/tracking';
 }
 
 String get api => '${AppConfig.baseHttpUrl}/api/v1/';
