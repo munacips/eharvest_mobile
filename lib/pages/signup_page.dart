@@ -55,6 +55,7 @@ class _SignupPageState extends State<SignupPage> {
 
   bool get _isFarmer => _selectedRole == 'FARMER';
   bool get _isBuyer => _selectedRole == 'BUYER';
+  bool get _isAdmin => _selectedRole == 'ADMIN';
   bool get _isLogisticsProvider => _selectedRole == 'LOGISTICS_PROVIDER';
 
   Future<void> _handleSignup() async {
@@ -175,8 +176,9 @@ class _SignupPageState extends State<SignupPage> {
                       DropdownMenuItem(value: 'BUYER', child: Text('Buyer')),
                       DropdownMenuItem(
                         value: 'LOGISTICS_PROVIDER',
-                        child: Text('Logistics Provider'),
+                        child: Text('Logistics Provider (Driver)'),
                       ),
+                      DropdownMenuItem(value: 'ADMIN', child: Text('System Administrator')),
                     ],
                     onChanged: _isLoading
                         ? null
