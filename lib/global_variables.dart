@@ -44,14 +44,14 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] ?? 0,
-      nationalId: json['national_id'] ?? '',
-      firstName: json['first_name'] ?? '',
-      lastName: json['last_name'] ?? '',
+      nationalId: json['national_id'] ?? json['nationalId'] ?? '',
+      firstName: json['first_name'] ?? json['firstName'] ?? '',
+      lastName: json['last_name'] ?? json['lastName'] ?? '',
       username: json['username'] ?? '',
       role: json['role'] ?? '',
       email: json['email'] ?? '',
       password: json['password'] ?? '',
-      phoneNumber: json['phone_number'] ?? '',
+      phoneNumber: json['phone_number'] ?? json['phoneNumber'] ?? '',
       address: json['address'] ?? '',
       active: json['active'] ?? false,
       verified: json['verified'] ?? false,
@@ -355,9 +355,9 @@ class Vehicle {
   factory Vehicle.fromJson(Map<String, dynamic> json) {
     return Vehicle(
       id: json['id'] ?? 0,
-      plateNumber: json['plate_number'] ?? '',
+      plateNumber: json['plate_number'] ?? json['plateNumber'] ?? '',
       type: json['type'] ?? '',
-      colour: json['colour'] ?? '',
+      colour: json['colour'] ?? json['color'] ?? '',
       owner: json['owner'] != null
           ? LogisticsProvider.fromJson(json['owner'])
           : null,
@@ -736,13 +736,20 @@ class Transaction {
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
+    final rawDate =
+        json['transaction_date'] ??
+        json['transactionDate'] ??
+        json['date'];
     return Transaction(
       id: json['id'] ?? 0,
       transactionDate:
-          DateTime.tryParse(json['transaction_date'] ?? '') ?? DateTime.now(),
+          DateTime.tryParse(rawDate?.toString() ?? '') ?? DateTime.now(),
       amount: double.tryParse(json['amount']?.toString() ?? '0') ?? 0.0,
       status: json['status'] ?? '',
-      transactionReference: json['transaction_reference'] ?? '',
+      transactionReference:
+          json['transaction_reference'] ??
+          json['transactionReference'] ??
+          '',
       buyer: json['buyer'] != null ? Buyer.fromJson(json['buyer']) : null,
       farmer: json['farmer'] != null ? Farmer.fromJson(json['farmer']) : null,
       order: json['order'] != null ? Order.fromJson(json['order']) : null,
@@ -853,6 +860,7 @@ class AppConfig {
 }
 
 String get api => '${AppConfig.baseHttpUrl}/api/v1/';
+String get adminApi => '${api}admin/';
 String get reportsApi => '${AppConfig.baseHttpUrl}/api/reports/';
 String get authApi => '${AppConfig.baseHttpUrl}/auth/';
 String get aiApi => AppConfig.baseAiUrl;

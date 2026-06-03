@@ -9,6 +9,7 @@ import 'package:eharvest_mobile/pages/season_recommendations_page.dart';
 import 'package:eharvest_mobile/pages/supply_map_screen.dart';
 import 'package:eharvest_mobile/pages/subscriptions_page.dart';
 import 'package:eharvest_mobile/pages/chat_inbox_page.dart';
+import 'package:eharvest_mobile/pages/admin/admin_dashboard_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
 import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
@@ -77,6 +78,7 @@ class _TabContainerState extends State<TabContainer> {
 
   bool get _canAccessBuy => _roleKey == 'buyer';
   bool get _canAccessSell => _roleKey == 'farmer';
+  bool get _canAccessAdmin => _roleKey == 'admin';
 
   List<({Widget page, Widget icon, String label})> _visibleTabs() {
     return <({Widget page, Widget icon, String label})>[
@@ -85,6 +87,12 @@ class _TabContainerState extends State<TabContainer> {
         icon: const Icon(Icons.home),
         label: 'Home',
       ),
+      if (_canAccessAdmin)
+        (
+          page: const AdminDashboardPage(),
+          icon: const Icon(Icons.admin_panel_settings),
+          label: 'Admin',
+        ),
       if (_canAccessBuy)
         (
           page: const BuyPage(),
