@@ -375,7 +375,7 @@ class _AccountPageState extends State<AccountPage> {
     final canInteract = widget.id > 0 && currentUserId != widget.id;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 24, bottom: 36),
+      padding: const EdgeInsets.only(top: 24, bottom: 24),
       decoration: BoxDecoration(
         color: Color(primaryColour),
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
@@ -427,7 +427,7 @@ class _AccountPageState extends State<AccountPage> {
           ),
           if (widget.id > 0 && currentUserId != widget.id) ...[
             const SizedBox(height: 16),
-            Wrap(
+            Column(
               alignment: WrapAlignment.center,
               spacing: 12,
               runSpacing: 12,
