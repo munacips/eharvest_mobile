@@ -1,5 +1,6 @@
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -214,9 +215,25 @@ class _ReviewsSectionState extends State<ReviewsSection> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      reviewerName,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    InkWell(
+                      onTap: () {
+                        if (review.reviewerId > 0) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AccountPage(id: review.reviewerId),
+                            ),
+                          );
+                        }
+                      },
+                      child: Text(
+                        reviewerName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(primaryColour),
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                     if (reviewerRole.isNotEmpty)
                       Text(

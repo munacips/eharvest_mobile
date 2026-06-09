@@ -2,6 +2,7 @@ import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
 import 'package:eharvest_mobile/widgets/pending_review_sheet.dart';
 import 'package:eharvest_mobile/widgets/review_form.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:flutter/material.dart';
 
 class OrderReviewSection extends StatefulWidget {
@@ -282,9 +283,25 @@ class _OrderReviewSectionState extends State<OrderReviewSection> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  target.displayName,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                InkWell(
+                  onTap: () {
+                    if (target.revieweeId > 0) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AccountPage(id: target.revieweeId),
+                        ),
+                      );
+                    }
+                  },
+                  child: Text(
+                    target.displayName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(primaryColour),
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(

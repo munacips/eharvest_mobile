@@ -1,6 +1,7 @@
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/subscription_service.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
@@ -321,7 +322,34 @@ class _SubscriptionFormPageState extends State<SubscriptionFormPage> {
           child: Icon(Icons.eco, color: Color(primaryColour)),
         ),
         title: Text(produce.name),
-        subtitle: Text('$farmerName - USD ${produce.price.toStringAsFixed(2)}'),
+        subtitle: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            InkWell(
+              onTap: () {
+                final id = _farmerId();
+                if (id != null && id > 0) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AccountPage(id: id),
+                    ),
+                  );
+                }
+              },
+              child: Text(
+                farmerName,
+                style: const TextStyle(
+                  color: Color(primaryColour),
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+            Text(' - USD ${produce.price.toStringAsFixed(2)}'),
+          ],
+        ),
+
       ),
     );
   }

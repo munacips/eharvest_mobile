@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/utils/responsive_breakpoints.dart';
@@ -302,10 +303,34 @@ class LogisticsPageState extends State<LogisticsPage> {
                       color: Colors.grey,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      provider.toString(),
-                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    InkWell(
+                      onTap: (request.assignedProvider?.id != null && request.assignedProvider!.id > 0)
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AccountPage(id: request.assignedProvider!.id),
+                                ),
+                              );
+                            }
+                          : null,
+                      child: Text(
+                        provider.toString(),
+                        style: TextStyle(
+                          color: (request.assignedProvider?.id != null && request.assignedProvider!.id > 0)
+                              ? Color(primaryColour)
+                              : Colors.grey,
+                          fontSize: 13,
+                          fontWeight: (request.assignedProvider?.id != null && request.assignedProvider!.id > 0)
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          decoration: (request.assignedProvider?.id != null && request.assignedProvider!.id > 0)
+                              ? TextDecoration.underline
+                              : null,
+                        ),
+                      ),
                     ),
+
                   ],
                 ),
                 ElevatedButton(

@@ -1,6 +1,7 @@
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/order_service.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:flutter/material.dart';
 
 class MyOrdersPage extends StatefulWidget {
@@ -320,7 +321,31 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
             Text('Date: ${_formatDate(order.orderDate)}'),
             Text('Total: USD ${order.totalAmount.toStringAsFixed(2)}'),
             Text('Logistics: ${_logisticsLabel(order.logisticsType)}'),
-            if (order.buyer != null) Text('Buyer: ${order.buyer!.fullName}'),
+            if (order.buyer != null)
+              Row(
+                children: [
+                  const Text('Buyer: '),
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AccountPage(id: order.buyer!.id),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      order.buyer!.fullName,
+                      style: const TextStyle(
+                        color: Color(primaryColour),
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
             if (_canProcessOrder(order))
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,

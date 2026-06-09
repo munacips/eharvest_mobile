@@ -1,6 +1,7 @@
 import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/services/review_service.dart';
 import 'package:eharvest_mobile/widgets/pending_review_sheet.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:flutter/material.dart';
 
 class PendingReviewsPage extends StatefulWidget {
@@ -177,11 +178,29 @@ class _PendingReviewsPageState extends State<PendingReviewsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      revieweeName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
+                    InkWell(
+                      onTap: review.revieweeId > 0
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AccountPage(id: review.revieweeId),
+                                ),
+                              );
+                            }
+                          : null,
+                      child: Text(
+                        revieweeName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: review.revieweeId > 0
+                              ? Color(primaryColour)
+                              : Colors.black,
+                          decoration: review.revieweeId > 0
+                              ? TextDecoration.underline
+                              : null,
+                        ),
                       ),
                     ),
                     if (revieweeRole.isNotEmpty) ...[

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:eharvest_mobile/pages/logistics_request_page.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -563,11 +564,30 @@ class _OrderPageState extends State<OrderPage> {
                       children: [
                         Icon(Icons.person, color: Colors.white70, size: 18),
                         const SizedBox(width: 6),
-                        Text(
-                          'Buyer: ${_order!.buyer!.displayName}',
-                          style: const TextStyle(
+                        const Text(
+                          'Buyer: ',
+                          style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AccountPage(id: _order!.buyer!.id),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            _order!.buyer!.displayName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.underline,
+                            ),
                           ),
                         ),
                       ],
@@ -581,11 +601,30 @@ class _OrderPageState extends State<OrderPage> {
                           size: 18,
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          'Farmer: ${_order!.farmer!.displayName}',
-                          style: const TextStyle(
+                        const Text(
+                          'Farmer: ',
+                          style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AccountPage(id: _order!.farmer!.id),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            _order!.farmer!.displayName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.underline,
+                            ),
                           ),
                         ),
                       ],

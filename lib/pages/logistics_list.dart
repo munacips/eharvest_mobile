@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/logistics_service.dart';
 import 'package:flutter/material.dart';
@@ -392,13 +393,43 @@ class _LogisticsListState extends State<LogisticsList> {
               delivery.isEmpty ? 'Unknown' : delivery,
             ),
             const SizedBox(height: 10),
-            _detailRow(Icons.person_outline, 'Buyer', _fullName(buyer)),
+            _clickableDetailRow(
+              Icons.person_outline,
+              'Buyer',
+              _fullName(buyer),
+              onTap: () {
+                final buyerId = _readInt(buyer, <String>['id']);
+                if (buyerId > 0) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AccountPage(id: buyerId),
+                    ),
+                  );
+                }
+              },
+            ),
             if (buyerPhone.isNotEmpty) ...[
               const SizedBox(height: 10),
               _detailRow(Icons.phone_outlined, 'Buyer Phone', buyerPhone),
             ],
             const SizedBox(height: 10),
-            _detailRow(Icons.agriculture_outlined, 'Farmer', _fullName(farmer)),
+            _clickableDetailRow(
+              Icons.agriculture_outlined,
+              'Farmer',
+              _fullName(farmer),
+              onTap: () {
+                final farmerId = _readInt(farmer, <String>['id']);
+                if (farmerId > 0) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AccountPage(id: farmerId),
+                    ),
+                  );
+                }
+              },
+            ),
             const SizedBox(height: 10),
             _detailRow(
               Icons.payments_outlined,
@@ -472,6 +503,46 @@ class _LogisticsListState extends State<LogisticsList> {
               fontSize: 13,
               color: Colors.grey.shade900,
               fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _clickableDetailRow(
+    IconData icon,
+    String label,
+    String value, {
+    VoidCallback? onTap,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: Color(primaryColour).withOpacity(0.7)),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 70,
+          child: Text(
+            '$label:',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Expanded(
+          child: InkWell(
+            onTap: onTap,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(primaryColour),
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline,
+              ),
             ),
           ),
         ),

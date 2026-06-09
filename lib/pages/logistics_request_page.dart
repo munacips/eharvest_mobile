@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:eharvest_mobile/models/tracking_update.dart';
 import 'package:flutter/material.dart';
 import 'package:eharvest_mobile/global_variables.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -587,6 +588,16 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
                     icon: Icons.person,
                     label: 'Assigned Provider',
                     value: _logisticsRequest.assignedProvider!.displayName,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AccountPage(
+                            id: _logisticsRequest.assignedProvider!.id,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -895,6 +906,7 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
     required String label,
     String? value,
     Widget? editingWidget,
+    VoidCallback? onTap,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -922,10 +934,23 @@ class _LogisticsRequestPageState extends State<LogisticsRequestPage> {
           ),
           const SizedBox(height: 8),
           if (value != null)
-            Text(
-              value,
-              style: const TextStyle(fontSize: 16, color: Colors.black87),
-            ),
+            onTap != null
+                ? InkWell(
+                    onTap: onTap,
+                    child: Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(primaryColour),
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  )
+                : Text(
+                    value,
+                    style: const TextStyle(fontSize: 16, color: Colors.black87),
+                  ),
           if (editingWidget != null) editingWidget,
         ],
       ),

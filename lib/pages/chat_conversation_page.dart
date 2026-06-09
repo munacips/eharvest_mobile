@@ -4,6 +4,7 @@ import 'package:eharvest_mobile/global_variables.dart';
 import 'package:eharvest_mobile/models/chat_models.dart';
 import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/chat_service.dart';
+import 'package:eharvest_mobile/pages/account_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -338,11 +339,24 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                     if (!isMine)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          message.senderName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Color(primaryDarkColour),
+                        child: InkWell(
+                          onTap: () {
+                            if (message.senderId > 0) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AccountPage(id: message.senderId),
+                                ),
+                              );
+                            }
+                          },
+                          child: Text(
+                            message.senderName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(primaryDarkColour),
+                              decoration: TextDecoration.underline,
+                            ),
                           ),
                         ),
                       ),
