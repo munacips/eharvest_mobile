@@ -7,6 +7,7 @@ import 'package:eharvest_mobile/services/auth_service.dart';
 import 'package:eharvest_mobile/services/chat_service.dart';
 import 'package:eharvest_mobile/pages/chat_conversation_page.dart';
 import 'package:eharvest_mobile/widgets/reviews_section.dart';
+import 'package:eharvest_mobile/services/dispute_report_service.dart';
 
 class AccountPage extends StatefulWidget {
   final int id;
@@ -25,6 +26,7 @@ class _AccountPageState extends State<AccountPage> {
   bool isLoading = true;
   bool isStartingConversation = false;
   String? errorMessage;
+  int? currentUserId;
 
   @override
   void initState() {
@@ -40,6 +42,7 @@ class _AccountPageState extends State<AccountPage> {
 
     try {
       final token = await AuthService.getToken();
+      final currentId = await AuthService.getUserId();
       if (token == null || token.isEmpty) {
         setState(() {
           errorMessage = 'Authentication error. Please log in again.';
@@ -47,6 +50,10 @@ class _AccountPageState extends State<AccountPage> {
         });
         return;
       }
+
+      setState(() {
+        currentUserId = currentId;
+      });
 
       final candidateEndpoints = <String>[
         'farmers',
@@ -201,6 +208,118 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
+  void _showReportDialog() {
+    final formKey = GlobalKey<FormState>();
+    final controller = TextEditingController();
+    var isSubmitting = false;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (builderContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Report User'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Please provide a description or reason for filing this report/dispute.',
+                      style: TextStyle(fontSize: 14, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: controller,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        labelText: 'Reason for report',
+                        hintText: 'Enter details here...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        alignLabelWithHint: true,
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Description is required';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (formKey.currentState?.validate() != true) {
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSubmitting = true;
+                          });
+
+                          final navigator = Navigator.of(dialogContext);
+                          final messenger = ScaffoldMessenger.of(context);
+
+                          try {
+                            await DisputeReportService.createReport(
+                              description: controller.text.trim(),
+                              filedAgainstId: widget.id,
+                            );
+
+                            if (!mounted) return;
+                            navigator.pop();
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Report filed successfully.'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() {
+                              isSubmitting = false;
+                            });
+                            if (!mounted) return;
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Error: ${e.toString()}'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      controller.dispose();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final personalTiles = _buildPersonalInfoTiles();
@@ -253,7 +372,7 @@ class _AccountPageState extends State<AccountPage> {
     final name = _getField('fullName')?.toString() ?? '-';
     final role = _normalizedRole;
     final verified = _getField('verified') == true;
-    final canMessageUser = widget.id > 0;
+    final canInteract = widget.id > 0 && currentUserId != widget.id;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 24, bottom: 24),
@@ -306,25 +425,41 @@ class _AccountPageState extends State<AccountPage> {
               letterSpacing: 1.1,
             ),
           ),
-          if (canMessageUser) ...[
+          if (canInteract) ...[
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: isStartingConversation ? null : _startConversation,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(primaryColour),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              ),
-              icon: isStartingConversation
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.chat_bubble_outline),
-              label: Text(
-                isStartingConversation ? 'Opening chat...' : 'Message user',
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: isStartingConversation ? null : _startConversation,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(primaryColour),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  icon: isStartingConversation
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.chat_bubble_outline),
+                  label: Text(
+                    isStartingConversation ? 'Opening chat...' : 'Message user',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _showReportDialog,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white, width: 1.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  icon: const Icon(Icons.report_problem_outlined),
+                  label: const Text('Report user'),
+                ),
+              ],
             ),
           ],
         ],
