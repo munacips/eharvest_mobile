@@ -428,9 +428,8 @@ class _AccountPageState extends State<AccountPage> {
           if (widget.id > 0 && currentUserId != widget.id) ...[
             const SizedBox(height: 16),
             Column(
-              alignment: WrapAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               spacing: 12,
-              runSpacing: 12,
               children: [
                 FilledButton.icon(
                   onPressed: isStartingConversation ? null : _startConversation,
