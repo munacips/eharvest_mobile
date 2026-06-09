@@ -425,7 +425,7 @@ class _AccountPageState extends State<AccountPage> {
               letterSpacing: 1.1,
             ),
           ),
-          if (widget.id > 0) ...[
+          if (widget.id > 0 && currentUserId != widget.id) ...[
             const SizedBox(height: 16),
             Wrap(
               alignment: WrapAlignment.center,
@@ -450,7 +450,6 @@ class _AccountPageState extends State<AccountPage> {
                     isStartingConversation ? 'Opening chat...' : 'Message user',
                   ),
                 ),
-                if (currentUserId != null && currentUserId != widget.id)
                   OutlinedButton.icon(
                     onPressed: _showReportDialog,
                     style: OutlinedButton.styleFrom(
