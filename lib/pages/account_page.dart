@@ -425,10 +425,12 @@ class _AccountPageState extends State<AccountPage> {
               letterSpacing: 1.1,
             ),
           ),
-          if (canInteract) ...[
+          if (widget.id > 0) ...[
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 FilledButton.icon(
                   onPressed: isStartingConversation ? null : _startConversation,
@@ -448,17 +450,17 @@ class _AccountPageState extends State<AccountPage> {
                     isStartingConversation ? 'Opening chat...' : 'Message user',
                   ),
                 ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: _showReportDialog,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white, width: 1.5),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                if (currentUserId != null && currentUserId != widget.id)
+                  OutlinedButton.icon(
+                    onPressed: _showReportDialog,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white, width: 1.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.report_problem_outlined),
+                    label: const Text('Report user'),
                   ),
-                  icon: const Icon(Icons.report_problem_outlined),
-                  label: const Text('Report user'),
-                ),
               ],
             ),
           ],
