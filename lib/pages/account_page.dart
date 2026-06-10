@@ -136,7 +136,9 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> _startConversation() async {
-    if (isStartingConversation) return;
+    if (isStartingConversation) {
+      return;
+    }
 
     setState(() {
       isStartingConversation = true;
@@ -161,8 +163,7 @@ class _AccountPageState extends State<AccountPage> {
 
       ChatConversation? existingConversation;
       for (final conversation in conversations) {
-        final memberIds =
-            conversation.members.map((member) => member.userId).toSet();
+        final memberIds = conversation.members.map((member) => member.userId).toSet();
         if (!conversation.isGroup &&
             memberIds.length == 2 &&
             memberIds.contains(currentUserId) &&
@@ -172,7 +173,8 @@ class _AccountPageState extends State<AccountPage> {
         }
       }
 
-      final conversation = existingConversation ??
+      final conversation =
+          existingConversation ??
           await chatService.createConversation(
             CreateConversationRequest(
               memberIds: [currentUserId, widget.id],
@@ -181,7 +183,9 @@ class _AccountPageState extends State<AccountPage> {
             ),
           );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -189,9 +193,12 @@ class _AccountPageState extends State<AccountPage> {
         ),
       );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error.toString())));
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     } finally {
       if (mounted) {
         setState(() {
@@ -247,15 +254,16 @@ class _AccountPageState extends State<AccountPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
+                  onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
                   onPressed: isSubmitting
                       ? null
                       : () async {
-                          if (formKey.currentState?.validate() != true) return;
+                          if (formKey.currentState?.validate() != true) {
+                            return;
+                          }
 
                           setDialogState(() {
                             isSubmitting = true;
@@ -327,39 +335,36 @@ class _AccountPageState extends State<AccountPage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : errorMessage != null
-              ? Center(child: Text(errorMessage!))
-              : SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      _buildProfileHeader(),
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          children: [
-                            _buildTrustCard(),
-                            const SizedBox(height: 20),
-                            ReviewsSection(userId: widget.id),
-                            const SizedBox(height: 20),
-                            if (personalTiles.isNotEmpty) ...[
-                              _buildInfoSection(
-                                'Contact Information',
-                                personalTiles,
-                              ),
-                              const SizedBox(height: 20),
-                            ],
-                            if (businessTiles.isNotEmpty) ...[
-                              _buildInfoSection(
-                                'Business Details',
-                                businessTiles,
-                              ),
-                              const SizedBox(height: 20),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
+          ? Center(child: Text(errorMessage!))
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildProfileHeader(),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        _buildTrustCard(),
+                        const SizedBox(height: 20),
+                        ReviewsSection(userId: widget.id),
+                        const SizedBox(height: 20),
+                        if (personalTiles.isNotEmpty) ...[
+                          _buildInfoSection(
+                            'Contact Information',
+                            personalTiles,
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                        if (businessTiles.isNotEmpty) ...[
+                          _buildInfoSection('Business Details', businessTiles),
+                          const SizedBox(height: 20),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -368,17 +373,14 @@ class _AccountPageState extends State<AccountPage> {
     final role = _normalizedRole;
     final verified = _getField('verified') == true;
     final canInteract = widget.id > 0 && currentUserId != widget.id;
-
     return Container(
       width: double.infinity,
-      // No fixed height — let content dictate size
-      padding: const EdgeInsets.only(top: 24, left: 16, right: 16, bottom: 28),
+      padding: const EdgeInsets.only(top: 24, bottom: 24),
       decoration: BoxDecoration(
         color: Color(primaryColour),
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Stack(
             children: [
@@ -423,21 +425,19 @@ class _AccountPageState extends State<AccountPage> {
               letterSpacing: 1.1,
             ),
           ),
-          if (canInteract) ...[
+          if (widget.id > 0 && currentUserId != widget.id) ...[
             const SizedBox(height: 16),
-            // Use Column instead of Wrap so both buttons always render
-            Column(
-              mainAxisSize: MainAxisSize.min,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 FilledButton.icon(
-                  onPressed:
-                      isStartingConversation ? null : _startConversation,
+                  onPressed: isStartingConversation ? null : _startConversation,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(primaryColour),
-                    minimumSize: const Size(200, 44),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   icon: isStartingConversation
                       ? const SizedBox(
@@ -447,18 +447,15 @@ class _AccountPageState extends State<AccountPage> {
                         )
                       : const Icon(Icons.chat_bubble_outline),
                   label: Text(
-                    isStartingConversation ? 'Opening chat...' : 'Message users, lol',
+                    isStartingConversation ? 'Opening chat...' : 'Message user lol',
                   ),
                 ),
-                const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: _showReportDialog,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: const BorderSide(color: Colors.white, width: 1.5),
-                    minimumSize: const Size(200, 44),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   icon: const Icon(Icons.report_problem_outlined),
                   label: const Text('Report user'),
@@ -527,8 +524,7 @@ class _AccountPageState extends State<AccountPage> {
           padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
           child: Text(
             title,
-            style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
         Card(
@@ -544,8 +540,7 @@ class _AccountPageState extends State<AccountPage> {
   List<Widget> _buildPersonalInfoTiles() {
     final tiles = <Widget>[];
     _addInfoTileIfValue(tiles, Icons.email, 'Email', _getField('email'));
-    _addInfoTileIfValue(
-        tiles, Icons.phone, 'Phone', _getField('phoneNumber'));
+    _addInfoTileIfValue(tiles, Icons.phone, 'Phone', _getField('phoneNumber'));
     _addInfoTileIfValue(tiles, Icons.home, 'Address', _getField('address'));
     return tiles;
   }
@@ -554,19 +549,43 @@ class _AccountPageState extends State<AccountPage> {
     final tiles = <Widget>[];
     if (_isFarmer) {
       _addInfoTileIfValue(
-          tiles, Icons.agriculture, 'Farm Name', _getField('farmName'));
-      _addInfoTileIfValue(tiles, Icons.location_on, 'Farm Location',
-          _getField('farmLocation'));
-      _addInfoTileIfValue(tiles, Icons.check_circle, 'Successful Sales',
-          _getField('successfulSales'));
+        tiles,
+        Icons.agriculture,
+        'Farm Name',
+        _getField('farmName'),
+      );
+      _addInfoTileIfValue(
+        tiles,
+        Icons.location_on,
+        'Farm Location',
+        _getField('farmLocation'),
+      );
+      _addInfoTileIfValue(
+        tiles,
+        Icons.check_circle,
+        'Successful Sales',
+        _getField('successfulSales'),
+      );
     } else if (_isBuyer) {
       _addInfoTileIfValue(
-          tiles, Icons.business, 'Company Name', _getField('companyName'));
-      _addInfoTileIfValue(tiles, Icons.shopping_cart_checkout,
-          'Successful Buys', _getField('successfulBuys'));
+        tiles,
+        Icons.business,
+        'Company Name',
+        _getField('companyName'),
+      );
+      _addInfoTileIfValue(
+        tiles,
+        Icons.shopping_cart_checkout,
+        'Successful Buys',
+        _getField('successfulBuys'),
+      );
     } else if (_isLogisticsProvider) {
-      _addInfoTileIfValue(tiles, Icons.local_shipping, 'License Number',
-          _getField('licenseNumber'));
+      _addInfoTileIfValue(
+        tiles,
+        Icons.local_shipping,
+        'License Number',
+        _getField('licenseNumber'),
+      );
     }
     return tiles;
   }
