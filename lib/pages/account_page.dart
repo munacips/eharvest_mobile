@@ -447,7 +447,7 @@ class _AccountPageState extends State<AccountPage> {
                         )
                       : const Icon(Icons.chat_bubble_outline),
                   label: Text(
-                    isStartingConversation ? 'Opening chat...' : 'Message user',
+                    isStartingConversation ? 'Opening chat...' : 'Message users, lol',
                   ),
                 ),
                 const SizedBox(height: 10),
